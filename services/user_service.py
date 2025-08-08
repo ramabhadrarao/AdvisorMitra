@@ -180,7 +180,9 @@ class UserService:
             return False, "User not found"
         
         user = User(user_data)
-        update_data = {'updated_at': datetime.utcnow()}
+        update_data = {
+            'updated_at': datetime.utcnow()
+        }
         
         # Partner approving agent
         if approver_role == 'PARTNER' and user.role == 'AGENT':
@@ -191,10 +193,16 @@ class UserService:
             update_data['partner_approved_at'] = datetime.utcnow()
             update_data['partner_approved_by'] = ObjectId(approver_id)
             
-            if not user.requires_double_approval:
-                update_data['approval_status'] = 'APPROVED'
+            # Check if double approval is required
+            if user.requires_double_approval:
+                # If super admin already approved, set as APPROVED
+                if user.super_admin_approved:
+                    update_data['approval_status'] = 'APPROVED'
+                else:
+                    update_data['approval_status'] = 'PARTNER_APPROVED'
             else:
-                update_data['approval_status'] = 'PARTNER_APPROVED'
+                # Single approval needed, partner approval is enough
+                update_data['approval_status'] = 'APPROVED'
         
         # Super admin approving partner or agent
         elif approver_role == 'SUPER_ADMIN':
@@ -202,29 +210,47 @@ class UserService:
             update_data['super_admin_approved_at'] = datetime.utcnow()
             update_data['super_admin_approved_by'] = ObjectId(approver_id)
             
-            if user.role == 'PARTNER' or (user.role == 'AGENT' and user.partner_approved):
+            # For partners, immediate approval
+            if user.role == 'PARTNER':
                 update_data['approval_status'] = 'APPROVED'
-            elif user.role == 'AGENT' and not user.requires_double_approval:
-                update_data['approval_status'] = 'APPROVED'
+            # For agents
+            elif user.role == 'AGENT':
+                # Check if double approval is required
+                if user.requires_double_approval:
+                    # If partner already approved, set as APPROVED
+                    if user.partner_approved:
+                        update_data['approval_status'] = 'APPROVED'
+                    else:
+                        # Keep as PARTNER_APPROVED if we're waiting for partner
+                        update_data['approval_status'] = 'PENDING'
+                else:
+                    # Single approval needed, super admin approval is enough
+                    update_data['approval_status'] = 'APPROVED'
         
         else:
             return False, "Invalid approval combination"
         
         # Update user
-        self.users.update_one(
+        result = self.users.update_one(
             {'_id': ObjectId(user_id)},
             {'$set': update_data}
         )
+        
+        if result.modified_count == 0:
+            # Check if already approved
+            if user.approval_status == 'APPROVED':
+                return False, "User is already approved"
+            return False, "Failed to update user status"
         
         # Log activity
         log_activity(
             approver_id,
             'USER_APPROVED',
             f"{approver_role} approved {user.role} {user.username}",
-            {'approved_user_id': user_id}
+            {'approved_user_id': user_id, 'new_status': update_data.get('approval_status', 'APPROVED')}
         )
         
-        return True, "User approved successfully"
+        return True, f"User {user.username} approved successfully"
     
     def reject_user(self, user_id, rejector_id, rejector_role, reason):
         """Reject user"""
