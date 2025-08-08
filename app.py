@@ -4,6 +4,7 @@ from flask_login import LoginManager, current_user
 from config import config
 from models.user import User
 from models import get_users_collection
+from datetime import datetime
 
 # Import controllers
 from controllers.auth_controller import auth_bp
@@ -40,6 +41,8 @@ def create_app(config_name='default'):
     app.register_blueprint(users_bp, url_prefix='/users')
     app.register_blueprint(plans_bp, url_prefix='/plans')
     app.register_blueprint(coupons_bp, url_prefix='/coupons')
+    # Register dashboard API blueprint without prefix for API routes
+    app.register_blueprint(dashboard_api_bp)
     
     # Dashboard route
     @app.route('/')
@@ -58,7 +61,7 @@ def create_app(config_name='default'):
         else:
             return render_template('dashboard/agent_dashboard.html')
     
-    # Create dashboard blueprint
+    # Create dashboard blueprint for template routes
     from flask import Blueprint
     dashboard_bp = Blueprint('dashboard', __name__)
     
@@ -83,7 +86,7 @@ def create_app(config_name='default'):
     # Context processor
     @app.context_processor
     def inject_user():
-        return dict(current_user=current_user)
+        return dict(current_user=current_user, datetime=datetime)
     
     with app.app_context():
         # Create initial owner account

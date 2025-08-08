@@ -3,8 +3,9 @@ from flask_login import login_required, current_user
 from werkzeug.utils import secure_filename
 from services.user_service import UserService
 from services.plan_service import PlanService
+from services.coupon_service import CouponService
 from utils.decorators import admin_required, api_admin_required
-from utils.helpers import save_profile_image, delete_profile_image
+from utils.helpers import save_profile_image, delete_profile_image, log_activity
 import os
 
 users_bp = Blueprint('users', __name__)
@@ -127,16 +128,57 @@ def toggle_status(user_id):
 @admin_required
 def assign_plan(user_id):
     plan_id = request.form.get('plan_id')
+    coupon_code = request.form.get('coupon_code')
     
     if not plan_id:
         flash('Please select a plan.', 'danger')
         return redirect(url_for('users.list'))
     
+    # Get plan details
+    plan_service = PlanService()
+    plan = plan_service.get_plan_by_id(plan_id)
+    
+    if not plan:
+        flash('Invalid plan selected.', 'danger')
+        return redirect(url_for('users.list'))
+    
+    # Calculate final amount after coupon if provided
+    final_amount = plan.price
+    discount_amount = 0
+    
+    if coupon_code:
+        coupon_service = CouponService()
+        success, message, discount = coupon_service.validate_and_apply_coupon(
+            coupon_code, plan.price, plan_id
+        )
+        if success:
+            discount_amount = discount
+            final_amount = plan.price - discount
+            flash(f'Coupon applied! Discount: ₹{discount}', 'info')
+        else:
+            flash(f'Coupon error: {message}', 'warning')
+    
+    # Assign plan to agent
     user_service = UserService()
     success, message = user_service.assign_plan_to_agent(user_id, plan_id, current_user.id)
     
     if success:
-        flash(message, 'success')
+        # Log the financial transaction
+        if discount_amount > 0:
+            log_activity(
+                current_user.id,
+                'PLAN_ASSIGNED_WITH_DISCOUNT',
+                f'Plan "{plan.name}" assigned with discount. Original: ₹{plan.price}, Discount: ₹{discount_amount}, Final: ₹{final_amount}',
+                {
+                    'agent_id': user_id,
+                    'plan_id': plan_id,
+                    'coupon_code': coupon_code,
+                    'original_price': plan.price,
+                    'discount': discount_amount,
+                    'final_amount': final_amount
+                }
+            )
+        flash(f'{message} Final amount: ₹{final_amount}', 'success')
     else:
         flash(message, 'danger')
     

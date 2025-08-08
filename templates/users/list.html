@@ -194,9 +194,10 @@
                         <div class="mt-3">
                             <label class="form-label">Apply Coupon (Optional)</label>
                             <div class="input-group">
-                                <input type="text" name="coupon_code" class="form-control" placeholder="Enter coupon code">
+                                <input type="text" id="tempCouponCode" class="form-control" placeholder="Enter coupon code">
                                 <button type="button" class="btn btn-primary" onclick="applyCoupon()">Apply</button>
                             </div>
+                            <input type="hidden" name="coupon_code" id="appliedCouponCode">
                             <div id="couponMessage" class="form-hint mt-1"></div>
                         </div>
                         
@@ -239,6 +240,7 @@
 let plansData = {};
 let currentPlanPrice = 0;
 let currentDiscount = 0;
+let appliedCouponCode = null;
 
 // Load plans for modal
 async function loadPlans() {
@@ -276,10 +278,12 @@ function updatePlanPricing(planId) {
         pricingDetails.style.display = 'block';
         
         // Reset coupon
-        document.querySelector('input[name="coupon_code"]').value = '';
+        document.getElementById('tempCouponCode').value = '';
+        document.getElementById('appliedCouponCode').value = '';
         document.getElementById('couponMessage').textContent = '';
         document.getElementById('discountDetails').style.display = 'none';
         currentDiscount = 0;
+        appliedCouponCode = null;
     } else {
         pricingDetails.style.display = 'none';
     }
@@ -287,7 +291,7 @@ function updatePlanPricing(planId) {
 
 // Apply coupon
 async function applyCoupon() {
-    const couponCode = document.querySelector('input[name="coupon_code"]').value;
+    const couponCode = document.getElementById('tempCouponCode').value;
     const planId = document.querySelector('select[name="plan_id"]').value;
     const couponMessage = document.getElementById('couponMessage');
     const discountDetails = document.getElementById('discountDetails');
@@ -323,6 +327,8 @@ async function applyCoupon() {
         
         if (data.success) {
             currentDiscount = data.discount;
+            appliedCouponCode = couponCode;
+            document.getElementById('appliedCouponCode').value = couponCode;
             discountAmount.textContent = currentDiscount;
             totalAmount.textContent = data.final_amount;
             couponMessage.textContent = data.message;
@@ -330,6 +336,8 @@ async function applyCoupon() {
             discountDetails.style.display = 'block';
         } else {
             currentDiscount = 0;
+            appliedCouponCode = null;
+            document.getElementById('appliedCouponCode').value = '';
             totalAmount.textContent = currentPlanPrice;
             couponMessage.textContent = data.message || 'Invalid coupon';
             couponMessage.className = 'form-hint mt-1 text-danger';
@@ -355,7 +363,10 @@ document.getElementById('assignPlanModal').addEventListener('show.bs.modal', fun
     // Reset form
     document.querySelector('select[name="plan_id"]').value = '';
     document.getElementById('pricingDetails').style.display = 'none';
+    document.getElementById('tempCouponCode').value = '';
+    document.getElementById('appliedCouponCode').value = '';
     currentDiscount = 0;
+    appliedCouponCode = null;
 });
 
 // Load plans on page load

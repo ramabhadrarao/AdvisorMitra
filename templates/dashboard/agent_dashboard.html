@@ -31,10 +31,15 @@
                             <div class="datagrid-item">
                                 <div class="datagrid-title">Plan Status</div>
                                 <div class="datagrid-content">
-                                    {% if current_user.plan_expiry_date and current_user.plan_expiry_date > datetime.utcnow() %}
-                                        <span class="badge bg-success">Active</span>
+                                    {% if current_user.plan_expiry_date %}
+                                        {% set now = datetime.utcnow() %}
+                                        {% if current_user.plan_expiry_date > now %}
+                                            <span class="badge bg-success">Active</span>
+                                        {% else %}
+                                            <span class="badge bg-danger">Expired</span>
+                                        {% endif %}
                                     {% else %}
-                                        <span class="badge bg-danger">Expired</span>
+                                        <span class="badge bg-warning">No Expiry Set</span>
                                     {% endif %}
                                 </div>
                             </div>
