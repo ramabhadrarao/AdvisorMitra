@@ -1,0 +1,56 @@
+Starting database seeding...
+Clearing existing data...
+Existing data cleared (super admin preserved)
+Creating plans...
+  Created plan: Basic Plan
+  Created plan: Professional Plan
+  Created plan: Enterprise Plan
+  Created plan: Starter Plan
+Creating coupons...
+  Created coupon: WELCOME20 - Welcome Discount
+  Created coupon: FLAT500 - Flat ₹500 Off
+  Created coupon: PARTNER30 - Partner Special
+  Created coupon: EXPIRED10 - Expired Offer
+Creating partners...
+  Created partner: partner1 - John Smith
+  Created partner: partner2 - Sarah Johnson
+  Created partner: partner3 - Michael Brown
+Creating agents...
+  Created agent: agent1 - David Wilson (Partner: 6895c9da2db05b27101e5aef)
+  Created agent: agent2 - Emily Davis (Partner: 6895c9da2db05b27101e5aef)
+  Created agent: agent3 - James Taylor (Partner: 6895c9da2db05b27101e5aef)
+  Created agent: agent4 - Lisa Anderson (Partner: 6895c9da2db05b27101e5af0)
+  Created agent: agent5 - Robert Martinez (Partner: 6895c9da2db05b27101e5af0)
+  Created agent: agent6 - Jennifer White (Partner: 6895c9da2db05b27101e5af0)
+Creating sample activities...
+  Created 4 sample activities
+
+Database seeding completed successfully!
+
+==================================================
+LOGIN CREDENTIALS:
+==================================================
+
+SUPER ADMIN:
+  Username: superadmin
+  Password: superadmin123
+
+PARTNERS:
+  Partner 1: partner1 / partner123 (Active, Double Approval)
+  Partner 2: partner2 / partner123 (Active, Single Approval)
+  Partner 3: partner3 / partner123 (Pending Approval)
+
+AGENTS:
+  Agent 1: agent1 / agent123 (Active with Professional Plan)
+  Agent 2: agent2 / agent123 (Partner Approved, awaiting Super Admin)
+  Agent 3: agent3 / agent123 (Pending Approval)
+  Agent 4: agent4 / agent123 (Active with Enterprise Plan)
+  Agent 5: agent5 / agent123 (Active with Basic Plan)
+  Agent 6: agent6 / agent123 (Rejected)
+
+COUPONS:
+  WELCOME20 - 20% off (max ₹1000)
+  FLAT500 - Flat ₹500 off
+  PARTNER30 - 30% partner special
+  EXPIRED10 - Expired coupon
+==================================================

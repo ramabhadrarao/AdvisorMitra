@@ -10,7 +10,10 @@ from services.coupon_service import CouponService
 from utils.decorators import admin_required, api_admin_required, super_admin_required, partner_required
 from utils.helpers import save_profile_image, delete_profile_image, log_activity
 import os
+from datetime import datetime
 
+from models import get_users_collection
+from bson import ObjectId
 users_bp = Blueprint('users', __name__)
 
 @users_bp.route('/')

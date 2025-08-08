@@ -416,7 +416,7 @@ def create_agents(db, partner_ids, plan_ids):
     
     return agent_ids
 
-def create_activities(db, partner_ids, agent_ids):
+def create_activities(db, partner_ids, agent_ids, plan_ids):
     """Create sample activities"""
     print("Creating sample activities...")
     
@@ -475,7 +475,7 @@ def main():
     coupon_ids = create_coupons(db)
     partner_ids = create_partners(db, plan_ids, coupon_ids)
     agent_ids = create_agents(db, partner_ids, plan_ids)
-    create_activities(db, partner_ids, agent_ids)
+    create_activities(db, partner_ids, agent_ids, plan_ids)
     
     print("\nDatabase seeding completed successfully!")
     print("\n" + "="*50)
