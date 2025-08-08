@@ -138,13 +138,17 @@
 // Load dashboard stats
 async function loadDashboardStats() {
     try {
-        // This would be implemented with actual API calls
-        document.getElementById('total-users').textContent = '0';
-        document.getElementById('total-agents').textContent = '0';
-        {% if current_user.is_owner() %}
-        document.getElementById('active-plans').textContent = '0';
-        document.getElementById('active-coupons').textContent = '0';
-        {% endif %}
+        const response = await fetch('/api/stats');
+        const data = await response.json();
+        
+        if (data.success) {
+            document.getElementById('total-users').textContent = data.stats.total_users;
+            document.getElementById('total-agents').textContent = data.stats.total_agents;
+            {% if current_user.is_owner() %}
+            document.getElementById('active-plans').textContent = data.stats.active_plans;
+            document.getElementById('active-coupons').textContent = data.stats.active_coupons;
+            {% endif %}
+        }
     } catch (error) {
         console.error('Error loading stats:', error);
     }
@@ -152,13 +156,34 @@ async function loadDashboardStats() {
 
 // Load recent activities
 async function loadRecentActivities() {
-    // This would be implemented with actual API calls
-    const activities = document.getElementById('recent-activities');
-    activities.innerHTML = `
-        <div class="list-group-item">
-            <div class="text-center text-muted py-4">No recent activities</div>
-        </div>
-    `;
+    try {
+        const response = await fetch('/api/recent-activities');
+        const data = await response.json();
+        
+        const activities = document.getElementById('recent-activities');
+        if (data.success && data.activities.length > 0) {
+            activities.innerHTML = data.activities.map(activity => `
+                <div class="list-group-item">
+                    <div class="row align-items-center">
+                        <div class="col">
+                            <strong>${activity.user}</strong> - ${activity.description}
+                        </div>
+                        <div class="col-auto">
+                            <small class="text-muted">${new Date(activity.created_at).toLocaleString()}</small>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        } else {
+            activities.innerHTML = `
+                <div class="list-group-item">
+                    <div class="text-center text-muted py-4">No recent activities</div>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('Error loading activities:', error);
+    }
 }
 
 // Load data on page load

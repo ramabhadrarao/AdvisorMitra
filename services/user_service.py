@@ -51,6 +51,7 @@ class UserService:
             plan_data = self.plans.find_one({'_id': ObjectId(user_data['plan_id'])})
             if plan_data:
                 plan = Plan(plan_data)
+                user_data['plan_id'] = ObjectId(user_data['plan_id'])
                 user_data['plan_start_date'] = datetime.utcnow()
                 user_data['plan_expiry_date'] = calculate_plan_expiry(plan)
                 user_data['pdf_limit'] = plan.pdf_limit

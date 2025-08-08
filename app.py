@@ -10,6 +10,7 @@ from controllers.auth_controller import auth_bp
 from controllers.user_controller import users_bp
 from controllers.plan_controller import plans_bp
 from controllers.coupon_controller import coupons_bp
+from controllers.dashboard_controller import dashboard_bp as dashboard_api_bp
 
 # Import services
 from services.auth_service import AuthService
