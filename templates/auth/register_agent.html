@@ -1,0 +1,77 @@
+<!-- templates/auth/register_agent.html -->
+<!-- Agent self-registration page -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+    <meta http-equiv="X-UA-Compatible" content="ie=edge"/>
+    <title>Agent Registration - Financial Planning System</title>
+    <link href="https://unpkg.com/@tabler/core@latest/dist/css/tabler.min.css" rel="stylesheet"/>
+</head>
+<body class="d-flex flex-column">
+    <div class="page page-center">
+        <div class="container container-tight py-4">
+            <div class="text-center mb-4">
+                <a href="." class="navbar-brand navbar-brand-autodark">
+                    <h1>AdvisorMitra</h1>
+                </a>
+            </div>
+            
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible" role="alert">
+                            <div class="d-flex">
+                                <div>{{ message }}</div>
+                            </div>
+                            <a class="btn-close" data-bs-dismiss="alert" aria-label="close"></a>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+            
+            <div class="card card-md">
+                <div class="card-body">
+                    <h2 class="h2 text-center mb-4">Agent Registration</h2>
+                    <form action="{{ url_for('auth.register_agent', token=token) }}" method="POST">
+                        <div class="mb-3">
+                            <label class="form-label required">Username</label>
+                            <input type="text" name="username" class="form-control" placeholder="Choose a username" required>
+                            <small class="form-hint">This will be used for login</small>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label required">Email</label>
+                            <input type="email" name="email" class="form-control" placeholder="your@email.com" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label required">Full Name</label>
+                            <input type="text" name="full_name" class="form-control" placeholder="Your full name" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Phone</label>
+                            <input type="tel" name="phone" class="form-control" placeholder="+1234567890">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label required">Password</label>
+                            <input type="password" name="password" class="form-control" placeholder="••••••••" required minlength="6">
+                            <small class="form-hint">Minimum 6 characters</small>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label required">Confirm Password</label>
+                            <input type="password" name="confirm_password" class="form-control" placeholder="••••••••" required minlength="6">
+                        </div>
+                        <div class="form-footer">
+                            <button type="submit" class="btn btn-primary w-100">Register</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            <div class="text-center text-muted mt-3">
+                Already have an account? <a href="{{ url_for('auth.login') }}">Login here</a>
+            </div>
+        </div>
+    </div>
+    <script src="https://unpkg.com/@tabler/core@latest/dist/js/tabler.min.js"></script>
+</body>
+</html>

@@ -1,3 +1,6 @@
+# app.py
+# Main application file with enhanced routing for three-tier system
+
 import os
 from flask import Flask, render_template, redirect, url_for
 from flask_login import LoginManager, current_user
@@ -56,8 +59,11 @@ def create_app(config_name='default'):
         if not current_user.is_authenticated:
             return redirect(url_for('auth.login'))
         
-        if current_user.is_owner() or current_user.is_admin():
-            return render_template('dashboard/admin_dashboard.html')
+        # Route to appropriate dashboard based on role
+        if current_user.is_super_admin():
+            return render_template('dashboard/super_admin_dashboard.html')
+        elif current_user.is_partner():
+            return render_template('dashboard/partner_dashboard.html')
         else:
             return render_template('dashboard/agent_dashboard.html')
     
@@ -67,8 +73,10 @@ def create_app(config_name='default'):
     
     @dashboard_bp.route('/')
     def index():
-        if current_user.is_owner() or current_user.is_admin():
-            return render_template('dashboard/admin_dashboard.html')
+        if current_user.is_super_admin():
+            return render_template('dashboard/super_admin_dashboard.html')
+        elif current_user.is_partner():
+            return render_template('dashboard/partner_dashboard.html')
         else:
             return render_template('dashboard/agent_dashboard.html')
     
@@ -89,9 +97,9 @@ def create_app(config_name='default'):
         return dict(current_user=current_user, datetime=datetime)
     
     with app.app_context():
-        # Create initial owner account
+        # Create initial super admin account
         auth_service = AuthService()
-        auth_service.create_initial_owner()
+        auth_service.create_initial_super_admin()
     
     return app
 

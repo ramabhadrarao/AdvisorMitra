@@ -1,0 +1,118 @@
+<!-- templates/users/create_partner.html -->
+<!-- Create Partner form with plan and coupon assignment -->
+{% extends "base.html" %}
+
+{% block title %}Create Partner - Financial Planning System{% endblock %}
+
+{% block content %}
+<div class="page-header d-print-none">
+    <div class="container-xl">
+        <div class="row g-2 align-items-center">
+            <div class="col">
+                <h2 class="page-title">Create Partner</h2>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="page-body">
+    <div class="container-xl">
+        <div class="row">
+            <div class="col-12 col-md-8 mx-auto">
+                <form method="post" class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Partner Details</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label required">Username</label>
+                                <input type="text" name="username" class="form-control" placeholder="partner01" required>
+                                <small class="form-hint">Unique username for login</small>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label required">Email</label>
+                                <input type="email" name="email" class="form-control" placeholder="partner@example.com" required>
+                                <small class="form-hint">Valid email address</small>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label required">Password</label>
+                                <input type="password" name="password" class="form-control" placeholder="••••••••" required minlength="6">
+                                <small class="form-hint">Minimum 6 characters</small>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label required">Full Name</label>
+                                <input type="text" name="full_name" class="form-control" placeholder="Partner Name" required>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Phone</label>
+                                <input type="tel" name="phone" class="form-control" placeholder="+1234567890">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label required">Overall PDF Limit</label>
+                                <input type="number" name="pdf_limit" class="form-control" placeholder="10000" min="0" required>
+                                <small class="form-hint">Total PDFs partner's agents can generate</small>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-check">
+                                <input type="checkbox" name="requires_double_approval" class="form-check-input">
+                                <span class="form-check-label">
+                                    Require double approval for agents
+                                    <small class="form-text text-muted d-block">
+                                        If checked, both partner and super admin must approve agents
+                                    </small>
+                                </span>
+                            </label>
+                        </div>
+                        
+                        <hr>
+                        
+                        <h4>Assigned Resources</h4>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Assigned Plans</label>
+                            <select name="assigned_plans" class="form-select" multiple size="5">
+                                {% for plan in plans %}
+                                <option value="{{ plan.id }}">
+                                    {{ plan.name }} - {{ plan.get_period_display() }} - ₹{{ plan.price }} - {{ plan.pdf_limit }} PDFs
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <small class="form-hint">Select plans this partner can assign to agents. Hold Ctrl/Cmd to select multiple</small>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Assigned Coupons</label>
+                            <select name="assigned_coupons" class="form-select" multiple size="5">
+                                {% for coupon in coupons %}
+                                <option value="{{ coupon.id }}">
+                                    {{ coupon.code }} - {{ coupon.name }} - 
+                                    {% if coupon.discount_type == 'PERCENTAGE' %}
+                                        {{ coupon.discount_value }}%
+                                    {% else %}
+                                        ₹{{ coupon.discount_value }}
+                                    {% endif %}
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <small class="form-hint">Select coupons this partner can use. Hold Ctrl/Cmd to select multiple</small>
+                        </div>
+                    </div>
+                    <div class="card-footer text-end">
+                        <a href="{{ url_for('users.list') }}" class="btn btn-link">Cancel</a>
+                        <button type="submit" class="btn btn-primary">Create Partner</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

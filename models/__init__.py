@@ -1,3 +1,6 @@
+# models/__init__.py
+# Database collections initialization with new registration_links collection
+
 from pymongo import MongoClient
 from flask import current_app, g
 
@@ -21,3 +24,6 @@ def get_coupons_collection():
 
 def get_activities_collection():
     return get_db()['activities']
+
+def get_registration_links_collection():
+    return get_db()['registration_links']

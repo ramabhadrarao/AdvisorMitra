@@ -1,6 +1,10 @@
+# controllers/auth_controller.py
+# Enhanced auth controller with agent registration
+
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from flask_login import login_user, logout_user, login_required, current_user
 from services.auth_service import AuthService
+from services.user_service import UserService
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -24,6 +28,36 @@ def login():
             flash(error, 'danger')
     
     return render_template('auth/login.html')
+
+@auth_bp.route('/register-agent/<token>', methods=['GET', 'POST'])
+def register_agent(token):
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard.index'))
+    
+    if request.method == 'POST':
+        agent_data = {
+            'username': request.form.get('username'),
+            'email': request.form.get('email'),
+            'password': request.form.get('password'),
+            'full_name': request.form.get('full_name'),
+            'phone': request.form.get('phone')
+        }
+        
+        # Validate password confirmation
+        if agent_data['password'] != request.form.get('confirm_password'):
+            flash('Passwords do not match.', 'danger')
+            return render_template('auth/register_agent.html', token=token)
+        
+        user_service = UserService()
+        agent_id, error = user_service.register_agent_via_link(agent_data, token)
+        
+        if agent_id:
+            flash('Registration successful! Your account is pending approval.', 'success')
+            return redirect(url_for('auth.login'))
+        else:
+            flash(error, 'danger')
+    
+    return render_template('auth/register_agent.html', token=token)
 
 @auth_bp.route('/logout')
 @login_required
@@ -59,59 +93,3 @@ def change_password():
                 flash(message, 'danger')
     
     return render_template('auth/change_password.html')
-
-# API endpoints for mobile/frontend apps
-@auth_bp.route('/api/login', methods=['POST'])
-def api_login():
-    data = request.get_json()
-    username = data.get('username')
-    password = data.get('password')
-    
-    auth_service = AuthService()
-    user, error = auth_service.authenticate_user(username, password)
-    
-    if user:
-        login_user(user, remember=True)
-        return jsonify({
-            'success': True,
-            'user': {
-                'id': user.id,
-                'username': user.username,
-                'email': user.email,
-                'role': user.role,
-                'full_name': user.full_name
-            }
-        })
-    else:
-        return jsonify({'success': False, 'error': error}), 401
-
-@auth_bp.route('/api/logout', methods=['POST'])
-@login_required
-def api_logout():
-    logout_user()
-    return jsonify({'success': True, 'message': 'Logged out successfully'})
-
-@auth_bp.route('/api/change-password', methods=['POST'])
-@login_required
-def api_change_password():
-    data = request.get_json()
-    old_password = data.get('old_password')
-    new_password = data.get('new_password')
-    
-    if not old_password or not new_password:
-        return jsonify({'success': False, 'error': 'All fields are required'}), 400
-    
-    if len(new_password) < 6:
-        return jsonify({'success': False, 'error': 'Password must be at least 6 characters long'}), 400
-    
-    auth_service = AuthService()
-    success, message = auth_service.change_password(
-        current_user.id,
-        old_password,
-        new_password
-    )
-    
-    if success:
-        return jsonify({'success': True, 'message': message})
-    else:
-        return jsonify({'success': False, 'error': message}), 400

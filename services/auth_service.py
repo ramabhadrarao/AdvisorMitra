@@ -1,3 +1,6 @@
+# services/auth_service.py
+# Authentication service with enhanced approval workflow
+
 from datetime import datetime
 from models import get_users_collection
 from models.user import User
@@ -15,8 +18,7 @@ class AuthService:
             '$or': [
                 {'username': username},
                 {'email': username}
-            ],
-            'is_active': True
+            ]
         })
         
         if not user_data:
@@ -27,6 +29,17 @@ class AuthService:
         # Verify password
         if not User.verify_password(password, user.password):
             return None, "Invalid username or password"
+        
+        # Check if user can login based on approval status
+        if not user.can_login():
+            if user.approval_status == 'REJECTED':
+                return None, f"Account rejected: {user.rejection_reason or 'Contact administrator'}"
+            elif user.approval_status == 'PENDING':
+                return None, "Account pending approval"
+            elif user.approval_status == 'PARTNER_APPROVED':
+                return None, "Account awaiting super admin approval"
+            else:
+                return None, "Account not active"
         
         # Update last login
         self.users.update_one(
@@ -80,21 +93,23 @@ class AuthService:
         
         return True, "Password changed successfully"
     
-    def create_initial_owner(self):
-        """Create initial owner account if none exists"""
-        owner = self.users.find_one({'role': 'OWNER'})
+    def create_initial_super_admin(self):
+        """Create initial super admin account if none exists"""
+        super_admin = self.users.find_one({'role': 'SUPER_ADMIN'})
         
-        if not owner:
-            owner_data = {
-                'username': 'admin',
-                'email': 'admin@example.com',
-                'password': User.hash_password('admin123'),
-                'full_name': 'System Administrator',
-                'role': 'OWNER',
+        if not super_admin:
+            super_admin_data = {
+                'username': 'superadmin',
+                'email': 'superadmin@example.com',
+                'password': User.hash_password('superadmin123'),
+                'full_name': 'Super Administrator',
+                'role': 'SUPER_ADMIN',
                 'is_active': True,
+                'approval_status': 'APPROVED',
+                'requires_double_approval': False,
                 'created_at': datetime.utcnow(),
                 'updated_at': datetime.utcnow()
             }
             
-            self.users.insert_one(owner_data)
-            print("Initial owner account created: admin/admin123")
+            self.users.insert_one(super_admin_data)
+            print("Initial super admin account created: superadmin/superadmin123")

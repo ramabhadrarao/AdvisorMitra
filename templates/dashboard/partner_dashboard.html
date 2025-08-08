@@ -1,0 +1,362 @@
+<!-- templates/dashboard/partner_dashboard.html -->
+<!-- Partner Dashboard with agent management features -->
+{% extends "base.html" %}
+
+{% block title %}Partner Dashboard - Financial Planning System{% endblock %}
+
+{% block content %}
+<div class="page-header d-print-none">
+    <div class="container-xl">
+        <div class="row g-2 align-items-center">
+            <div class="col">
+                <h2 class="page-title">
+                    Partner Dashboard
+                </h2>
+                <div class="text-muted mt-1">Welcome back, {{ current_user.full_name or current_user.username }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="page-body">
+    <div class="container-xl">
+        <!-- Stats Cards -->
+        <div class="row row-deck row-cards">
+            <div class="col-sm-6 col-lg-3">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <div class="subheader">Total Agents</div>
+                        </div>
+                        <div class="h1 mb-3" id="total-agents">-</div>
+                        <div class="d-flex mb-2">
+                            <div><span id="active-agents">-</span> active</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-sm-6 col-lg-3">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <div class="subheader">Pending Approvals</div>
+                        </div>
+                        <div class="h1 mb-3" id="pending-agents">-</div>
+                        <div class="d-flex mb-2">
+                            <div>Awaiting your approval</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-sm-6 col-lg-3">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <div class="subheader">PDF Usage</div>
+                        </div>
+                        <div class="h1 mb-3"><span id="pdf-generated">-</span> / <span id="pdf-limit">-</span></div>
+                        <div class="progress progress-sm">
+                            <div class="progress-bar bg-primary" id="pdf-progress" style="width: 0%" role="progressbar"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-sm-6 col-lg-3">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <div class="subheader">Resources</div>
+                        </div>
+                        <div class="h1 mb-3">
+                            <span id="assigned-plans">-</span> / <span id="assigned-coupons">-</span>
+                        </div>
+                        <div class="d-flex mb-2">
+                            <div>Plans / Coupons</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Quick Actions -->
+        <div class="row row-cards mt-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Quick Actions</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-auto">
+                                <button class="btn btn-primary" onclick="generateAgentLink()">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-.5 .5" /><path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l.5 -.5" /></svg>
+                                    Generate Agent Registration Link
+                                </button>
+                            </div>
+                            <div class="col-auto">
+                                <a href="{{ url_for('users.pending_approvals') }}" class="btn btn-warning">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 7m-4 0a4 4 0 1 0 8 0a4 4 0 1 0 -8 0" /><path d="M3 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" /><path d="M16 11l2 2l4 -4" /></svg>
+                                    View Pending Approvals
+                                </a>
+                            </div>
+                            <div class="col-auto">
+                                <a href="{{ url_for('users.list') }}" class="btn btn-info">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 7m-4 0a4 4 0 1 0 8 0a4 4 0 1 0 -8 0" /><path d="M3 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" /></svg>
+                                    Manage Agents
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Agents Overview -->
+        <div class="row row-cards mt-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Recent Agents</h3>
+                        <div class="card-actions">
+                            <a href="{{ url_for('users.list') }}" class="btn btn-sm">View All</a>
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table card-table table-vcenter text-nowrap">
+                            <thead>
+                                <tr>
+                                    <th>Agent</th>
+                                    <th>Email</th>
+                                    <th>Plan</th>
+                                    <th>PDF Usage</th>
+                                    <th>Status</th>
+                                    <th class="w-1"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="agents-table">
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted">Loading...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Recent Activities -->
+        <div class="row row-cards mt-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Recent Activities</h3>
+                    </div>
+                    <div class="list-group list-group-flush" id="recent-activities">
+                        <div class="list-group-item">
+                            <div class="text-center text-muted py-4">Loading activities...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Registration Link Modal -->
+<div class="modal modal-blur fade" id="linkModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Agent Registration Link</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <label class="form-label">Registration Link</label>
+                <div class="input-group">
+                    <input type="text" id="registration_link" class="form-control" readonly>
+                    <button class="btn btn-primary" onclick="copyLink()">Copy</button>
+                </div>
+                <small class="form-hint">Share this link with the agent to register</small>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Load dashboard stats
+async function loadDashboardStats() {
+    try {
+        const response = await fetch('/api/dashboard-stats');
+        const data = await response.json();
+        
+        if (data.success) {
+            document.getElementById('total-agents').textContent = data.stats.total_agents;
+            document.getElementById('active-agents').textContent = data.stats.active_agents;
+            document.getElementById('pending-agents').textContent = data.stats.pending_agents;
+            document.getElementById('pdf-generated').textContent = data.stats.pdf_generated;
+            document.getElementById('pdf-limit').textContent = data.stats.pdf_limit;
+            document.getElementById('assigned-plans').textContent = data.stats.assigned_plans;
+            document.getElementById('assigned-coupons').textContent = data.stats.assigned_coupons;
+            
+            // Update progress bar
+            if (data.stats.pdf_limit > 0) {
+                const percentage = (data.stats.pdf_generated / data.stats.pdf_limit) * 100;
+                document.getElementById('pdf-progress').style.width = percentage + '%';
+            }
+        }
+    } catch (error) {
+        console.error('Error loading stats:', error);
+    }
+}
+
+// Load agents table
+async function loadAgents() {
+    try {
+        const response = await fetch('/users/api/list?role=AGENT');
+        const data = await response.json();
+        
+        if (data.success) {
+            const tbody = document.getElementById('agents-table');
+            if (data.users.length > 0) {
+                tbody.innerHTML = data.users.slice(0, 5).map(agent => `
+                    <tr>
+                        <td>
+                            <div class="d-flex py-1 align-items-center">
+                                <div class="flex-fill">
+                                    <div class="font-weight-medium">${agent.full_name || agent.username}</div>
+                                    <div class="text-muted">@${agent.username}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td>${agent.email}</td>
+                        <td>${agent.plan ? agent.plan.name : 'No plan'}</td>
+                        <td>
+                            ${agent.plan ? `${agent.pdf_generated}/${agent.pdf_limit}` : '-'}
+                        </td>
+                        <td>
+                            <span class="badge bg-${getStatusColor(agent.approval_status)}">
+                                ${getStatusText(agent.approval_status)}
+                            </span>
+                        </td>
+                        <td>
+                            ${agent.approval_status === 'PENDING' ? 
+                                `<a href="/users/${agent.id}/approve" class="btn btn-sm btn-success">Approve</a>` : 
+                                `<a href="/users/${agent.id}/edit" class="btn btn-sm">Edit</a>`
+                            }
+                        </td>
+                    </tr>
+                `).join('');
+            } else {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">No agents found</td></tr>';
+            }
+        }
+    } catch (error) {
+        console.error('Error loading agents:', error);
+    }
+}
+
+// Status helpers
+function getStatusColor(status) {
+    switch(status) {
+        case 'APPROVED': return 'success';
+        case 'PENDING': return 'warning';
+        case 'PARTNER_APPROVED': return 'info';
+        case 'REJECTED': return 'danger';
+        default: return 'secondary';
+    }
+}
+
+function getStatusText(status) {
+    switch(status) {
+        case 'APPROVED': return 'Active';
+        case 'PENDING': return 'Pending Approval';
+        case 'PARTNER_APPROVED': return 'Awaiting Super Admin';
+        case 'REJECTED': return 'Rejected';
+        default: return status;
+    }
+}
+
+// Generate agent registration link
+async function generateAgentLink() {
+    try {
+        const response = await fetch('/users/generate-registration-link', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            document.getElementById('registration_link').value = data.registration_url;
+            const modal = new bootstrap.Modal(document.getElementById('linkModal'));
+            modal.show();
+        } else {
+            alert('Error generating link: ' + data.error);
+        }
+    } catch (error) {
+        console.error('Error generating link:', error);
+        alert('Error generating link');
+    }
+}
+
+// Copy link to clipboard
+function copyLink() {
+    const input = document.getElementById('registration_link');
+    input.select();
+    document.execCommand('copy');
+    alert('Link copied to clipboard!');
+}
+
+// Load recent activities
+async function loadRecentActivities() {
+    try {
+        const response = await fetch('/api/recent-activities');
+        const data = await response.json();
+        
+        const activities = document.getElementById('recent-activities');
+        if (data.success && data.activities.length > 0) {
+            activities.innerHTML = data.activities.map(activity => `
+                <div class="list-group-item">
+                    <div class="row align-items-center">
+                        <div class="col">
+                            <strong>${activity.user}</strong> - ${activity.description}
+                        </div>
+                        <div class="col-auto">
+                            <small class="text-muted">${new Date(activity.created_at).toLocaleString()}</small>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        } else {
+            activities.innerHTML = `
+                <div class="list-group-item">
+                    <div class="text-center text-muted py-4">No recent activities</div>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('Error loading activities:', error);
+    }
+}
+
+// Load data on page load
+document.addEventListener('DOMContentLoaded', function() {
+    loadDashboardStats();
+    loadAgents();
+    loadRecentActivities();
+    
+    // Refresh stats every 30 seconds
+    setInterval(loadDashboardStats, 30000);
+});
+</script>
+{% endblock %}

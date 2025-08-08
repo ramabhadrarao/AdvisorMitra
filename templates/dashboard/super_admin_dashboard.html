@@ -1,0 +1,389 @@
+<!-- templates/dashboard/super_admin_dashboard.html -->
+<!-- Super Admin Dashboard with comprehensive management features -->
+{% extends "base.html" %}
+
+{% block title %}Super Admin Dashboard - Financial Planning System{% endblock %}
+
+{% block content %}
+<div class="page-header d-print-none">
+    <div class="container-xl">
+        <div class="row g-2 align-items-center">
+            <div class="col">
+                <h2 class="page-title">
+                    Super Admin Dashboard
+                </h2>
+                <div class="text-muted mt-1">Welcome back, {{ current_user.full_name or current_user.username }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="page-body">
+    <div class="container-xl">
+        <!-- Stats Cards -->
+        <div class="row row-deck row-cards">
+            <div class="col-sm-6 col-lg-3">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <div class="subheader">Total Partners</div>
+                        </div>
+                        <div class="h1 mb-3" id="total-partners">-</div>
+                        <div class="d-flex mb-2">
+                            <div><span id="active-partners">-</span> active</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-sm-6 col-lg-3">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <div class="subheader">Total Agents</div>
+                        </div>
+                        <div class="h1 mb-3" id="total-agents">-</div>
+                        <div class="d-flex mb-2">
+                            <div><span id="active-agents">-</span> active</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-sm-6 col-lg-3">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <div class="subheader">Pending Approvals</div>
+                        </div>
+                        <div class="h1 mb-3" id="pending-approvals">-</div>
+                        <div class="d-flex mb-2">
+                            <div>Awaiting action</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-sm-6 col-lg-3">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <div class="subheader">PDF Usage</div>
+                        </div>
+                        <div class="h1 mb-3"><span id="total-pdfs">-</span> / <span id="pdf-limit">-</span></div>
+                        <div class="progress progress-sm">
+                            <div class="progress-bar bg-primary" id="pdf-progress" style="width: 0%" role="progressbar"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Quick Actions -->
+        <div class="row row-cards mt-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Quick Actions</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-auto">
+                                <a href="{{ url_for('users.create_partner') }}" class="btn btn-primary">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 5l0 14" /><path d="M5 12l14 0" /></svg>
+                                    Create Partner
+                                </a>
+                            </div>
+                            <div class="col-auto">
+                                <a href="{{ url_for('plans.create') }}" class="btn btn-success">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 5l0 14" /><path d="M5 12l14 0" /></svg>
+                                    Create Plan
+                                </a>
+                            </div>
+                            <div class="col-auto">
+                                <a href="{{ url_for('coupons.create') }}" class="btn btn-info">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 5l0 14" /><path d="M5 12l14 0" /></svg>
+                                    Create Coupon
+                                </a>
+                            </div>
+                            <div class="col-auto">
+                                <a href="{{ url_for('users.pending_approvals') }}" class="btn btn-warning">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 7m-4 0a4 4 0 1 0 8 0a4 4 0 1 0 -8 0" /><path d="M3 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" /><path d="M16 11l2 2l4 -4" /></svg>
+                                    View Pending Approvals
+                                </a>
+                            </div>
+                            <div class="col-auto">
+                                <button class="btn btn-secondary" data-bs-toggle="modal" data-bs-target="#generateLinkModal">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-.5 .5" /><path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l.5 -.5" /></svg>
+                                    Generate Registration Link
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Partners Overview -->
+        <div class="row row-cards mt-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Partners Overview</h3>
+                        <div class="card-actions">
+                            <a href="{{ url_for('users.list', role='PARTNER') }}" class="btn btn-sm">View All</a>
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table card-table table-vcenter text-nowrap">
+                            <thead>
+                                <tr>
+                                    <th>Partner</th>
+                                    <th>Agents</th>
+                                    <th>PDF Usage</th>
+                                    <th>Status</th>
+                                    <th class="w-1"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="partners-table">
+                                <tr>
+                                    <td colspan="5" class="text-center text-muted">Loading...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Recent Activities -->
+        <div class="row row-cards mt-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Recent Activities</h3>
+                    </div>
+                    <div class="list-group list-group-flush" id="recent-activities">
+                        <div class="list-group-item">
+                            <div class="text-center text-muted py-4">Loading activities...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Generate Registration Link Modal -->
+<div class="modal modal-blur fade" id="generateLinkModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Generate Agent Registration Link</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Select Partner</label>
+                    <select id="partner_select" class="form-select">
+                        <option value="">Choose a partner...</option>
+                    </select>
+                </div>
+                <div id="link-result" style="display: none;">
+                    <label class="form-label">Registration Link</label>
+                    <div class="input-group">
+                        <input type="text" id="registration_link" class="form-control" readonly>
+                        <button class="btn btn-primary" onclick="copyLink()">Copy</button>
+                    </div>
+                    <small class="form-hint">Share this link with the agent to register</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn me-auto" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" onclick="generateLink()">Generate Link</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Load dashboard stats
+async function loadDashboardStats() {
+    try {
+        const response = await fetch('/api/dashboard-stats');
+        const data = await response.json();
+        
+        if (data.success) {
+            document.getElementById('total-partners').textContent = data.stats.total_partners;
+            document.getElementById('active-partners').textContent = data.stats.active_partners;
+            document.getElementById('total-agents').textContent = data.stats.total_agents;
+            document.getElementById('active-agents').textContent = data.stats.active_agents;
+            document.getElementById('pending-approvals').textContent = data.stats.pending_approvals;
+            document.getElementById('total-pdfs').textContent = data.stats.total_pdfs_generated;
+            document.getElementById('pdf-limit').textContent = data.stats.total_pdf_limit;
+            
+            // Update progress bar
+            if (data.stats.total_pdf_limit > 0) {
+                const percentage = (data.stats.total_pdfs_generated / data.stats.total_pdf_limit) * 100;
+                document.getElementById('pdf-progress').style.width = percentage + '%';
+            }
+        }
+    } catch (error) {
+        console.error('Error loading stats:', error);
+    }
+}
+
+// Load partners for table and modal
+async function loadPartners() {
+    try {
+        const response = await fetch('/users/api/list?role=PARTNER');
+        const data = await response.json();
+        
+        if (data.success) {
+            // Update table
+            const tbody = document.getElementById('partners-table');
+            if (data.users.length > 0) {
+                tbody.innerHTML = data.users.slice(0, 5).map(partner => `
+                    <tr>
+                        <td>
+                            <div class="d-flex py-1 align-items-center">
+                                <div class="flex-fill">
+                                    <div class="font-weight-medium">${partner.full_name || partner.username}</div>
+                                    <div class="text-muted">@${partner.username}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td id="partner-agents-${partner.id}">-</td>
+                        <td id="partner-pdf-${partner.id}">-</td>
+                        <td>
+                            <span class="badge bg-${partner.is_active ? 'success' : 'danger'}">
+                                ${partner.is_active ? 'Active' : 'Inactive'}
+                            </span>
+                        </td>
+                        <td>
+                            <a href="/users/api/partner-stats/${partner.id}" class="btn btn-sm">View</a>
+                        </td>
+                    </tr>
+                `).join('');
+                
+                // Load stats for each partner
+                data.users.slice(0, 5).forEach(partner => {
+                    loadPartnerStats(partner.id);
+                });
+            } else {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">No partners found</td></tr>';
+            }
+            
+            // Update modal select
+            const select = document.getElementById('partner_select');
+            select.innerHTML = '<option value="">Choose a partner...</option>' + 
+                data.users.map(partner => `
+                    <option value="${partner.id}">${partner.full_name || partner.username}</option>
+                `).join('');
+        }
+    } catch (error) {
+        console.error('Error loading partners:', error);
+    }
+}
+
+// Load individual partner stats
+async function loadPartnerStats(partnerId) {
+    try {
+        const response = await fetch(`/users/api/partner-stats/${partnerId}`);
+        const data = await response.json();
+        
+        if (data.success) {
+            document.getElementById(`partner-agents-${partnerId}`).textContent = 
+                `${data.stats.active_agents}/${data.stats.total_agents}`;
+            document.getElementById(`partner-pdf-${partnerId}`).textContent = 
+                `${data.stats.pdf_generated}/${data.stats.pdf_limit}`;
+        }
+    } catch (error) {
+        console.error('Error loading partner stats:', error);
+    }
+}
+
+// Generate registration link
+async function generateLink() {
+    const partnerId = document.getElementById('partner_select').value;
+    if (!partnerId) {
+        alert('Please select a partner');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/users/generate-registration-link', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: `partner_id=${partnerId}`
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            document.getElementById('registration_link').value = data.registration_url;
+            document.getElementById('link-result').style.display = 'block';
+        } else {
+            alert('Error generating link: ' + data.error);
+        }
+    } catch (error) {
+        console.error('Error generating link:', error);
+        alert('Error generating link');
+    }
+}
+
+// Copy link to clipboard
+function copyLink() {
+    const input = document.getElementById('registration_link');
+    input.select();
+    document.execCommand('copy');
+    alert('Link copied to clipboard!');
+}
+
+// Load recent activities
+async function loadRecentActivities() {
+    try {
+        const response = await fetch('/api/recent-activities');
+        const data = await response.json();
+        
+        const activities = document.getElementById('recent-activities');
+        if (data.success && data.activities.length > 0) {
+            activities.innerHTML = data.activities.map(activity => `
+                <div class="list-group-item">
+                    <div class="row align-items-center">
+                        <div class="col">
+                            <strong>${activity.user}</strong> - ${activity.description}
+                        </div>
+                        <div class="col-auto">
+                            <small class="text-muted">${new Date(activity.created_at).toLocaleString()}</small>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        } else {
+            activities.innerHTML = `
+                <div class="list-group-item">
+                    <div class="text-center text-muted py-4">No recent activities</div>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('Error loading activities:', error);
+    }
+}
+
+// Load data on page load
+document.addEventListener('DOMContentLoaded', function() {
+    loadDashboardStats();
+    loadPartners();
+    loadRecentActivities();
+    
+    // Refresh stats every 30 seconds
+    setInterval(loadDashboardStats, 30000);
+});
+</script>
+{% endblock %}
