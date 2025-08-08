@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+
+{% block title %}Create Coupon - Financial Planning System{% endblock %}
+
+{% block content %}
+<div class="page-header d-print-none">
+    <div class="container-xl">
+        <div class="row g-2 align-items-center">
+            <div class="col">
+                <h2 class="page-title">Create Coupon</h2>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="page-body">
+    <div class="container-xl">
+        <div class="row">
+            <div class="col-12 col-md-8 mx-auto">
+                <form method="post" class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Coupon Details</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Coupon Code</label>
+                                <input type="text" name="code" class="form-control" placeholder="AUTO-GENERATE" style="text-transform: uppercase;">
+                                <small class="form-hint">Leave empty to auto-generate</small>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label required">Coupon Name</label>
+                                <input type="text" name="name" class="form-control" placeholder="Summer Sale 2024" required>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Description</label>
+                            <textarea name="description" class="form-control" rows="2" placeholder="Coupon description..."></textarea>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label required">Discount Type</label>
+                                <select name="discount_type" class="form-select" required onchange="toggleMaxDiscount(this.value)">
+                                    <option value="PERCENTAGE">Percentage</option>
+                                    <option value="FIXED">Fixed Amount</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label required">Discount Value</label>
+                                <input type="number" name="discount_value" class="form-control" placeholder="10" min="0" step="0.01" required>
+                                <small class="form-hint">Enter percentage or amount</small>
+                            </div>
+                            <div class="col-md-4 mb-3" id="maxDiscountDiv">
+                                <label class="form-label">Max Discount (₹)</label>
+                                <input type="number" name="max_discount_amount" class="form-control" placeholder="500" min="0" step="0.01">
+                                <small class="form-hint">For percentage discounts</small>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Min Purchase Amount (₹)</label>
+                                <input type="number" name="min_purchase_amount" class="form-control" placeholder="1000" min="0" step="0.01" value="0">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Usage Limit</label>
+                                <input type="number" name="usage_limit" class="form-control" placeholder="100" min="1">
+                                <small class="form-hint">Leave empty for unlimited</small>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Valid From</label>
+                                <input type="datetime-local" name="valid_from" class="form-control" value="{{ datetime.now().strftime('%Y-%m-%dT%H:%M') }}">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Valid Until</label>
+                                <input type="datetime-local" name="valid_until" class="form-control">
+                                <small class="form-hint">Leave empty for no expiry</small>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Applicable Plans</label>
+                            <select name="applicable_plans" class="form-select" multiple>
+                                {% for plan in plans %}
+                                <option value="{{ plan.id }}">{{ plan.name }} - {{ plan.get_period_display() }}</option>
+                                {% endfor %}
+                            </select>
+                            <small class="form-hint">Leave empty to apply to all plans. Hold Ctrl/Cmd to select multiple</small>
+                        </div>
+                    </div>
+                    <div class="card-footer text-end">
+                        <a href="{{ url_for('coupons.list') }}" class="btn btn-link">Cancel</a>
+                        <button type="submit" class="btn btn-primary">Create Coupon</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function toggleMaxDiscount(discountType) {
+    const maxDiscountDiv = document.getElementById('maxDiscountDiv');
+    if (discountType === 'PERCENTAGE') {
+        maxDiscountDiv.style.display = 'block';
+    } else {
+        maxDiscountDiv.style.display = 'none';
+        document.querySelector('input[name="max_discount_amount"]').value = '';
+    }
+}
+
+// Convert code to uppercase as user types
+document.querySelector('input[name="code"]').addEventListener('input', function(e) {
+    e.target.value = e.target.value.toUpperCase();
+});
+</script>
+{% endblock %}

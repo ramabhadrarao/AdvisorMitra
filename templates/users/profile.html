@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+
+{% block title %}Create User - Financial Planning System{% endblock %}
+
+{% block content %}
+<div class="page-header d-print-none">
+    <div class="container-xl">
+        <div class="row g-2 align-items-center">
+            <div class="col">
+                <h2 class="page-title">Create User</h2>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="page-body">
+    <div class="container-xl">
+        <div class="row">
+            <div class="col-12 col-md-8 mx-auto">
+                <form method="post" class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">User Details</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label required">Username</label>
+                                <input type="text" name="username" class="form-control" placeholder="johndoe" required>
+                                <small class="form-hint">Unique username for login</small>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label required">Email</label>
+                                <input type="email" name="email" class="form-control" placeholder="john@example.com" required>
+                                <small class="form-hint">Valid email address</small>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label required">Password</label>
+                                <input type="password" name="password" class="form-control" placeholder="••••••••" required minlength="6">
+                                <small class="form-hint">Minimum 6 characters</small>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label required">Full Name</label>
+                                <input type="text" name="full_name" class="form-control" placeholder="John Doe" required>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Phone</label>
+                                <input type="tel" name="phone" class="form-control" placeholder="+1234567890">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label required">Role</label>
+                                <select name="role" class="form-select" required onchange="togglePlanSelection(this.value)">
+                                    <option value="">Select role...</option>
+                                    {% if current_user.is_owner() %}
+                                    <option value="ADMIN">Admin</option>
+                                    {% endif %}
+                                    <option value="AGENT">Agent</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="row" id="planSelection" style="display: none;">
+                            <div class="col-12 mb-3">
+                                <label class="form-label">Assign Plan (for Agents)</label>
+                                <select name="plan_id" class="form-select">
+                                    <option value="">Select plan...</option>
+                                    {% for plan in plans %}
+                                    <option value="{{ plan.id }}">
+                                        {{ plan.name }} - {{ plan.get_period_display() }} - ₹{{ plan.price }} - {{ plan.pdf_limit }} PDFs
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                                <small class="form-hint">You can assign a plan now or later</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-footer text-end">
+                        <a href="{{ url_for('users.list') }}" class="btn btn-link">Cancel</a>
+                        <button type="submit" class="btn btn-primary">Create User</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function togglePlanSelection(role) {
+    const planSelection = document.getElementById('planSelection');
+    if (role === 'AGENT') {
+        planSelection.style.display = 'block';
+    } else {
+        planSelection.style.display = 'none';
+        document.querySelector('select[name="plan_id"]').value = '';
+    }
+}
+</script>
+{% endblock %}

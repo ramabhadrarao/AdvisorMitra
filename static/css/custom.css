@@ -1,0 +1,237 @@
+/* Custom CSS for Financial Planning System */
+
+/* Dashboard Cards */
+.card {
+    transition: all 0.3s ease;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+/* Avatar Styles */
+.avatar {
+    background-size: cover;
+    background-position: center;
+}
+
+/* Progress Bars */
+.progress-sm {
+    height: 4px;
+}
+
+/* Table Enhancements */
+.table-vcenter td {
+    vertical-align: middle;
+}
+
+/* Badge Styles */
+.badge {
+    font-weight: 500;
+}
+
+/* Form Enhancements */
+.form-label.required:after {
+    content: " *";
+    color: #d63939;
+}
+
+/* Modal Styles */
+.modal-blur {
+    backdrop-filter: blur(4px);
+}
+
+/* Pagination */
+.pagination {
+    margin-bottom: 0;
+}
+
+/* Activity List */
+.list-group-item {
+    transition: background-color 0.2s ease;
+}
+
+.list-group-item:hover {
+    background-color: rgba(0, 0, 0, 0.02);
+}
+
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+    .btn-list {
+        flex-wrap: wrap;
+    }
+    
+    .btn-list .btn {
+        margin-bottom: 0.5rem;
+    }
+}
+
+/* Datagrid Styles */
+.datagrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+}
+
+.datagrid-item {
+    padding: 1rem;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 4px;
+}
+
+.datagrid-title {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #626976;
+    margin-bottom: 0.25rem;
+}
+
+.datagrid-content {
+    font-size: 1.125rem;
+    font-weight: 600;
+}
+
+/* Loading States */
+.loading {
+    position: relative;
+    pointer-events: none;
+    opacity: 0.6;
+}
+
+.loading::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    margin: -1rem 0 0 -1rem;
+    width: 2rem;
+    height: 2rem;
+    border: 2px solid #206bc4;
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* File Upload */
+input[type="file"] {
+    cursor: pointer;
+}
+
+/* Code Blocks */
+code {
+    padding: 0.2em 0.4em;
+    background-color: rgba(0, 0, 0, 0.05);
+    border-radius: 3px;
+    font-size: 0.875em;
+}
+
+/* Status Indicators */
+.status-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 0.5rem;
+}
+
+.status-dot.active {
+    background-color: #2fb344;
+}
+
+.status-dot.inactive {
+    background-color: #d63939;
+}
+
+/* Plan Cards */
+.plan-card {
+    border: 2px solid transparent;
+    transition: all 0.3s ease;
+}
+
+.plan-card:hover {
+    border-color: #206bc4;
+}
+
+.plan-card.selected {
+    border-color: #2fb344;
+    background-color: rgba(47, 179, 68, 0.05);
+}
+
+/* Feature List */
+.feature-list {
+    list-style: none;
+    padding: 0;
+}
+
+.feature-list li {
+    padding: 0.5rem 0;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.feature-list li:last-child {
+    border-bottom: none;
+}
+
+/* Coupon Code Display */
+.coupon-code {
+    font-family: 'Monaco', 'Consolas', monospace;
+    font-size: 1.125rem;
+    background-color: rgba(0, 0, 0, 0.05);
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    display: inline-block;
+}
+
+/* Activity Timeline */
+.timeline {
+    position: relative;
+    padding-left: 2rem;
+}
+
+.timeline::before {
+    content: "";
+    position: absolute;
+    left: 0.5rem;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background-color: rgba(0, 0, 0, 0.1);
+}
+
+.timeline-item {
+    position: relative;
+    padding-bottom: 1rem;
+}
+
+.timeline-item::before {
+    content: "";
+    position: absolute;
+    left: -1.5rem;
+    top: 0.5rem;
+    width: 8px;
+    height: 8px;
+    background-color: #206bc4;
+    border-radius: 50%;
+}
+
+/* Error Pages */
+.error-page {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.error-code {
+    font-size: 8rem;
+    font-weight: 300;
+    line-height: 1;
+    color: rgba(0, 0, 0, 0.1);
+}

@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Dashboard - Financial Planning System{% endblock %}
+
+{% block content %}
+<div class="page-header d-print-none">
+    <div class="container-xl">
+        <div class="row g-2 align-items-center">
+            <div class="col">
+                <h2 class="page-title">
+                    Admin Dashboard
+                </h2>
+                <div class="text-muted mt-1">Welcome back, {{ current_user.full_name or current_user.username }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="page-body">
+    <div class="container-xl">
+        <!-- Stats Cards -->
+        <div class="row row-deck row-cards">
+            {% if current_user.is_owner() %}
+            <div class="col-sm-6 col-lg-3">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <div class="subheader">Total Users</div>
+                        </div>
+                        <div class="h1 mb-3" id="total-users">-</div>
+                        <div class="d-flex mb-2">
+                            <div>Active users in system</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-sm-6 col-lg-3">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <div class="subheader">Active Plans</div>
+                        </div>
+                        <div class="h1 mb-3" id="active-plans">-</div>
+                        <div class="d-flex mb-2">
+                            <div>Subscription plans</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-sm-6 col-lg-3">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <div class="subheader">Active Coupons</div>
+                        </div>
+                        <div class="h1 mb-3" id="active-coupons">-</div>
+                        <div class="d-flex mb-2">
+                            <div>Discount coupons</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            
+            <div class="col-sm-6 col-lg-3">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <div class="subheader">Total Agents</div>
+                        </div>
+                        <div class="h1 mb-3" id="total-agents">-</div>
+                        <div class="d-flex mb-2">
+                            <div>Registered agents</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Quick Actions -->
+        <div class="row row-cards mt-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Quick Actions</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-auto">
+                                <a href="{{ url_for('users.create') }}" class="btn btn-primary">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 5l0 14" /><path d="M5 12l14 0" /></svg>
+                                    Create User
+                                </a>
+                            </div>
+                            {% if current_user.is_owner() %}
+                            <div class="col-auto">
+                                <a href="{{ url_for('plans.create') }}" class="btn btn-success">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 5l0 14" /><path d="M5 12l14 0" /></svg>
+                                    Create Plan
+                                </a>
+                            </div>
+                            <div class="col-auto">
+                                <a href="{{ url_for('coupons.create') }}" class="btn btn-info">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 5l0 14" /><path d="M5 12l14 0" /></svg>
+                                    Create Coupon
+                                </a>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Recent Activities -->
+        <div class="row row-cards mt-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Recent Activities</h3>
+                    </div>
+                    <div class="list-group list-group-flush" id="recent-activities">
+                        <div class="list-group-item">
+                            <div class="text-center text-muted py-4">Loading activities...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Load dashboard stats
+async function loadDashboardStats() {
+    try {
+        // This would be implemented with actual API calls
+        document.getElementById('total-users').textContent = '0';
+        document.getElementById('total-agents').textContent = '0';
+        {% if current_user.is_owner() %}
+        document.getElementById('active-plans').textContent = '0';
+        document.getElementById('active-coupons').textContent = '0';
+        {% endif %}
+    } catch (error) {
+        console.error('Error loading stats:', error);
+    }
+}
+
+// Load recent activities
+async function loadRecentActivities() {
+    // This would be implemented with actual API calls
+    const activities = document.getElementById('recent-activities');
+    activities.innerHTML = `
+        <div class="list-group-item">
+            <div class="text-center text-muted py-4">No recent activities</div>
+        </div>
+    `;
+}
+
+// Load data on page load
+document.addEventListener('DOMContentLoaded', function() {
+    loadDashboardStats();
+    loadRecentActivities();
+});
+</script>
+{% endblock %}
