@@ -83,11 +83,15 @@
                                 {% endif %}
                             </td>
                             <td>
-                                {% set is_valid, message = coupon.is_valid() %}
-                                {% if is_valid %}
-                                    <span class="badge bg-success">Active</span>
+                                {% if coupon.is_active %}
+                                    {% set is_valid, validity_message = coupon.is_valid() %}
+                                    {% if is_valid %}
+                                        <span class="badge bg-success">Active</span>
+                                    {% else %}
+                                        <span class="badge bg-warning" title="{{ validity_message }}">Active ({{ validity_message }})</span>
+                                    {% endif %}
                                 {% else %}
-                                    <span class="badge bg-danger" title="{{ message }}">Inactive</span>
+                                    <span class="badge bg-danger">Inactive</span>
                                 {% endif %}
                             </td>
                             <td>
