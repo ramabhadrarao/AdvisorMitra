@@ -294,7 +294,9 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn me-auto" data-bs-dismiss="modal">Close</button>
+                {% if current_user.is_super_admin() %}
                 <button type="button" class="btn btn-primary" onclick="generateLink()">Generate Link</button>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -410,22 +412,95 @@ let plansData = {};
 let currentPlanPrice = 0;
 let currentDiscount = 0;
 
-// Generate agent registration link
-async function generateAgentLink() {
-    const modal = new bootstrap.Modal(document.getElementById('generateLinkModal'));
-    modal.show();
+// Simple modal handling functions
+function showModal(modalId) {
+    const modal = document.getElementById(modalId);
+    if (!modal) return;
+    
+    // Add classes and styles to show modal
+    modal.classList.add('show');
+    modal.style.display = 'block';
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('role', 'dialog');
+    document.body.classList.add('modal-open');
+    
+    // Create and add backdrop
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop fade show';
+    backdrop.id = modalId + '-backdrop';
+    document.body.appendChild(backdrop);
+    
+    // Setup close handlers
+    const closeButtons = modal.querySelectorAll('[data-bs-dismiss="modal"], .btn-close');
+    closeButtons.forEach(btn => {
+        btn.onclick = () => hideModal(modalId);
+    });
+    
+    // Close on backdrop click
+    backdrop.onclick = () => hideModal(modalId);
 }
 
-async function generateLink() {
+function hideModal(modalId) {
+    const modal = document.getElementById(modalId);
+    const backdrop = document.getElementById(modalId + '-backdrop');
+    
+    if (modal) {
+        modal.classList.remove('show');
+        modal.style.display = 'none';
+        modal.removeAttribute('aria-modal');
+        modal.removeAttribute('role');
+    }
+    
+    if (backdrop) {
+        backdrop.remove();
+    }
+    
+    document.body.classList.remove('modal-open');
+}
+
+// Generate agent registration link
+async function generateAgentLink() {
     {% if current_user.is_super_admin() %}
+    // For super admin, show modal to select partner
+    showModal('generateLinkModal');
+    {% else %}
+    // For partners, directly generate the link
+    try {
+        const response = await fetch('/users/generate-registration-link', {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            document.getElementById('registration_link').value = data.registration_url;
+            document.getElementById('link-result').style.display = 'block';
+            showModal('generateLinkModal');
+        } else {
+            alert('Error generating link: ' + (data.error || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error generating link:', error);
+        alert('Error generating link: ' + error.message);
+    }
+    {% endif %}
+}
+
+{% if current_user.is_super_admin() %}
+// Generate link for selected partner (super admin only)
+async function generateLink() {
     const partnerId = document.getElementById('partner_select').value;
     if (!partnerId) {
         alert('Please select a partner');
         return;
     }
-    {% else %}
-    const partnerId = '{{ current_user.id }}';
-    {% endif %}
     
     try {
         const response = await fetch('/users/generate-registration-link', {
@@ -433,7 +508,7 @@ async function generateLink() {
             headers: {
                 'Content-Type': 'application/x-www-form-urlencoded',
             },
-            body: {% if current_user.is_super_admin() %}`partner_id=${partnerId}`{% else %}''{% endif %}
+            body: `partner_id=${partnerId}`
         });
         
         const data = await response.json();
@@ -449,6 +524,7 @@ async function generateLink() {
         alert('Error generating link');
     }
 }
+{% endif %}
 
 // Copy link to clipboard
 function copyLink() {
@@ -463,8 +539,7 @@ function showRejectModal(agentId, agentName) {
     document.getElementById('rejectAgentName').value = agentName;
     const form = document.getElementById('rejectForm');
     form.action = `/users/${agentId}/reject`;
-    const modal = new bootstrap.Modal(document.getElementById('rejectModal'));
-    modal.show();
+    showModal('rejectModal');
 }
 
 // Show assign plan modal
@@ -473,11 +548,18 @@ async function showAssignPlanModal(agentId, agentName) {
     const form = document.getElementById('assignPlanForm');
     form.action = `/users/${agentId}/assign-plan`;
     
+    // Reset form state
+    document.getElementById('tempCouponCode').value = '';
+    document.getElementById('appliedCouponCode').value = '';
+    document.getElementById('couponMessage').textContent = '';
+    document.getElementById('discountDetails').style.display = 'none';
+    document.getElementById('pricingDetails').style.display = 'none';
+    currentDiscount = 0;
+    
     // Load available plans
     await loadPlans();
     
-    const modal = new bootstrap.Modal(document.getElementById('assignPlanModal'));
-    modal.show();
+    showModal('assignPlanModal');
 }
 
 // Load plans for modal

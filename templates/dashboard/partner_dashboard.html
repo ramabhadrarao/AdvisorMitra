@@ -103,7 +103,7 @@
                                 </a>
                             </div>
                             <div class="col-auto">
-                                <a href="{{ url_for('users.list') }}" class="btn btn-info">
+                                <a href="{{ url_for('users.agents') }}" class="btn btn-info">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 7m-4 0a4 4 0 1 0 8 0a4 4 0 1 0 -8 0" /><path d="M3 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" /></svg>
                                     Manage Agents
                                 </a>
@@ -121,7 +121,7 @@
                     <div class="card-header">
                         <h3 class="card-title">Recent Agents</h3>
                         <div class="card-actions">
-                            <a href="{{ url_for('users.list') }}" class="btn btn-sm">View All</a>
+                            <a href="{{ url_for('users.agents') }}" class="btn btn-sm">View All</a>
                         </div>
                     </div>
                     <div class="table-responsive">
@@ -187,10 +187,89 @@
         </div>
     </div>
 </div>
+
+<!-- Assign Plan Modal -->
+<div class="modal modal-blur fade" id="assignPlanModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Assign Plan to Agent</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" id="assignPlanForm">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Agent</label>
+                        <input type="text" class="form-control" id="agentName" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Select Plan</label>
+                        <select name="plan_id" class="form-select" required onchange="updatePlanPricing(this.value)">
+                            <option value="">Choose a plan...</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Pricing Details -->
+                    <div id="pricingDetails" style="display: none;">
+                        <hr>
+                        <div class="row">
+                            <div class="col">
+                                <strong>Plan Price:</strong>
+                            </div>
+                            <div class="col-auto">
+                                ₹<span id="planPrice">0</span>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-3">
+                            <label class="form-label">Apply Coupon (Optional)</label>
+                            <div class="input-group">
+                                <input type="text" id="tempCouponCode" class="form-control" placeholder="Enter coupon code">
+                                <button type="button" class="btn btn-primary" onclick="applyCoupon()">Apply</button>
+                            </div>
+                            <input type="hidden" name="coupon_code" id="appliedCouponCode">
+                            <div id="couponMessage" class="form-hint mt-1"></div>
+                        </div>
+                        
+                        <div id="discountDetails" style="display: none;" class="mt-2">
+                            <div class="row text-success">
+                                <div class="col">
+                                    <strong>Discount:</strong>
+                                </div>
+                                <div class="col-auto">
+                                    -₹<span id="discountAmount">0</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <hr>
+                        <div class="row">
+                            <div class="col">
+                                <strong>Total Amount:</strong>
+                            </div>
+                            <div class="col-auto">
+                                <strong>₹<span id="totalAmount">0</span></strong>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn me-auto" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Assign Plan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
+// Variables for plan assignment
+let plansData = {};
+let currentPlanPrice = 0;
+let currentDiscount = 0;
+
 // Load dashboard stats
 async function loadDashboardStats() {
     try {
@@ -248,7 +327,9 @@ async function loadAgents() {
                         </td>
                         <td>
                             ${agent.approval_status === 'PENDING' ? 
-                                `<a href="/users/${agent.id}/approve" class="btn btn-sm btn-success">Approve</a>` : 
+                                `<a href="/users/pending-approvals" class="btn btn-sm btn-warning">Review</a>` : 
+                                agent.approval_status === 'APPROVED' && !agent.plan ? 
+                                `<a href="#" class="btn btn-sm btn-primary" onclick="showAssignPlanModal('${agent.id}', '${agent.full_name || agent.username}')">Assign Plan</a>` :
                                 `<a href="/users/${agent.id}/edit" class="btn btn-sm">Edit</a>`
                             }
                         </td>
@@ -287,25 +368,61 @@ function getStatusText(status) {
 // Generate agent registration link
 async function generateAgentLink() {
     try {
+        // For partners, we don't need to send partner_id
+        const formData = new FormData();
+        
         const response = await fetch('/users/generate-registration-link', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-            }
+            body: formData
         });
+        
+        // Check if response is ok
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
         
         const data = await response.json();
         
         if (data.success) {
             document.getElementById('registration_link').value = data.registration_url;
-            const modal = new bootstrap.Modal(document.getElementById('linkModal'));
-            modal.show();
+            
+            // Show modal using Tabler's method or vanilla JavaScript
+            const modalElement = document.getElementById('linkModal');
+            if (typeof bootstrap !== 'undefined') {
+                const modal = new bootstrap.Modal(modalElement);
+                modal.show();
+            } else {
+                // Fallback: show modal using Tabler's built-in method
+                modalElement.classList.add('show');
+                modalElement.style.display = 'block';
+                document.body.classList.add('modal-open');
+                
+                // Create backdrop
+                const backdrop = document.createElement('div');
+                backdrop.className = 'modal-backdrop fade show';
+                document.body.appendChild(backdrop);
+                
+                // Handle close button
+                modalElement.querySelector('.btn-close').onclick = function() {
+                    modalElement.classList.remove('show');
+                    modalElement.style.display = 'none';
+                    document.body.classList.remove('modal-open');
+                    backdrop.remove();
+                };
+                
+                modalElement.querySelector('[data-bs-dismiss="modal"]').onclick = function() {
+                    modalElement.classList.remove('show');
+                    modalElement.style.display = 'none';
+                    document.body.classList.remove('modal-open');
+                    backdrop.remove();
+                };
+            }
         } else {
-            alert('Error generating link: ' + data.error);
+            alert('Error generating link: ' + (data.error || 'Unknown error'));
         }
     } catch (error) {
         console.error('Error generating link:', error);
-        alert('Error generating link');
+        alert('Error generating link: ' + error.message);
     }
 }
 
@@ -315,6 +432,160 @@ function copyLink() {
     input.select();
     document.execCommand('copy');
     alert('Link copied to clipboard!');
+}
+
+// Show assign plan modal
+async function showAssignPlanModal(agentId, agentName) {
+    document.getElementById('agentName').value = agentName;
+    const form = document.getElementById('assignPlanForm');
+    form.action = `/users/${agentId}/assign-plan`;
+    
+    // Reset form state
+    document.getElementById('tempCouponCode').value = '';
+    document.getElementById('appliedCouponCode').value = '';
+    document.getElementById('couponMessage').textContent = '';
+    document.getElementById('discountDetails').style.display = 'none';
+    document.getElementById('pricingDetails').style.display = 'none';
+    currentDiscount = 0;
+    
+    // Load available plans
+    await loadPlans();
+    
+    // Show modal
+    const modalElement = document.getElementById('assignPlanModal');
+    if (typeof bootstrap !== 'undefined') {
+        const modal = new bootstrap.Modal(modalElement);
+        modal.show();
+    } else {
+        // Fallback: show modal manually
+        modalElement.classList.add('show');
+        modalElement.style.display = 'block';
+        document.body.classList.add('modal-open');
+        
+        // Create backdrop
+        const backdrop = document.createElement('div');
+        backdrop.className = 'modal-backdrop fade show';
+        backdrop.id = 'assignPlanBackdrop';
+        document.body.appendChild(backdrop);
+        
+        // Handle close buttons
+        const closeModal = function() {
+            modalElement.classList.remove('show');
+            modalElement.style.display = 'none';
+            document.body.classList.remove('modal-open');
+            const existingBackdrop = document.getElementById('assignPlanBackdrop');
+            if (existingBackdrop) existingBackdrop.remove();
+        };
+        
+        modalElement.querySelector('.btn-close').onclick = closeModal;
+        modalElement.querySelector('[data-bs-dismiss="modal"]').onclick = closeModal;
+    }
+}
+
+// Load plans for modal
+async function loadPlans() {
+    try {
+        const response = await fetch('/plans/api/active');
+        const data = await response.json();
+        
+        if (data.success) {
+            const select = document.querySelector('#assignPlanModal select[name="plan_id"]');
+            select.innerHTML = '<option value="">Choose a plan...</option>';
+            
+            // Filter plans based on partner's assigned plans
+            data.plans.forEach(plan => {
+                plansData[plan.id] = plan;
+                const option = document.createElement('option');
+                option.value = plan.id;
+                option.textContent = `${plan.name} - ${plan.period_display} - ${plan.pdf_limit} PDFs - ₹${plan.price}`;
+                select.appendChild(option);
+            });
+        }
+    } catch (error) {
+        console.error('Error loading plans:', error);
+    }
+}
+
+// Update plan pricing display
+function updatePlanPricing(planId) {
+    const pricingDetails = document.getElementById('pricingDetails');
+    const planPrice = document.getElementById('planPrice');
+    const totalAmount = document.getElementById('totalAmount');
+    
+    if (planId && plansData[planId]) {
+        currentPlanPrice = plansData[planId].price;
+        planPrice.textContent = currentPlanPrice;
+        totalAmount.textContent = currentPlanPrice - currentDiscount;
+        pricingDetails.style.display = 'block';
+        
+        // Reset coupon
+        document.getElementById('tempCouponCode').value = '';
+        document.getElementById('appliedCouponCode').value = '';
+        document.getElementById('couponMessage').textContent = '';
+        document.getElementById('discountDetails').style.display = 'none';
+        currentDiscount = 0;
+    } else {
+        pricingDetails.style.display = 'none';
+    }
+}
+
+// Apply coupon
+async function applyCoupon() {
+    const couponCode = document.getElementById('tempCouponCode').value;
+    const planId = document.querySelector('select[name="plan_id"]').value;
+    const couponMessage = document.getElementById('couponMessage');
+    const discountDetails = document.getElementById('discountDetails');
+    const discountAmount = document.getElementById('discountAmount');
+    const totalAmount = document.getElementById('totalAmount');
+    
+    if (!couponCode) {
+        couponMessage.textContent = 'Please enter a coupon code';
+        couponMessage.className = 'form-hint mt-1 text-danger';
+        return;
+    }
+    
+    if (!planId) {
+        couponMessage.textContent = 'Please select a plan first';
+        couponMessage.className = 'form-hint mt-1 text-danger';
+        return;
+    }
+    
+    try {
+        const response = await fetch('/coupons/api/validate', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                code: couponCode,
+                amount: currentPlanPrice,
+                plan_id: planId
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            currentDiscount = data.discount;
+            document.getElementById('appliedCouponCode').value = couponCode;
+            discountAmount.textContent = currentDiscount;
+            totalAmount.textContent = data.final_amount;
+            couponMessage.textContent = data.message;
+            couponMessage.className = 'form-hint mt-1 text-success';
+            discountDetails.style.display = 'block';
+        } else {
+            currentDiscount = 0;
+            document.getElementById('appliedCouponCode').value = '';
+            totalAmount.textContent = currentPlanPrice;
+            couponMessage.textContent = data.message || 'Invalid coupon';
+            couponMessage.className = 'form-hint mt-1 text-danger';
+            discountDetails.style.display = 'none';
+        }
+    } catch (error) {
+        console.error('Error applying coupon:', error);
+        couponMessage.textContent = 'Error applying coupon';
+        couponMessage.className = 'form-hint mt-1 text-danger';
+    }
 }
 
 // Load recent activities
