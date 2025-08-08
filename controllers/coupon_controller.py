@@ -1,9 +1,13 @@
+# controllers/coupon_controller.py
+# Enhanced coupon controller with partner restrictions
+
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from flask_login import login_required, current_user
 from services.coupon_service import CouponService
 from services.plan_service import PlanService
 from utils.decorators import owner_required
 from datetime import datetime
+from models.user import User
 
 coupons_bp = Blueprint('coupons', __name__)
 
@@ -85,6 +89,17 @@ def edit(coupon_id):
             if max_discount:
                 update_data['max_discount_amount'] = float(max_discount)
         
+        # Add partner limits to update_data
+        from models import get_users_collection
+        users = get_users_collection()
+        partners = users.find({'role': 'PARTNER'})
+        
+        for partner in partners:
+            partner_id = str(partner['_id'])
+            limit_value = request.form.get(f'partner_limit_{partner_id}')
+            if limit_value:
+                update_data[f'partner_limit_{partner_id}'] = limit_value
+        
         success, message = coupon_service.update_coupon(coupon_id, update_data, current_user.id)
         
         if success:
@@ -93,9 +108,20 @@ def edit(coupon_id):
         else:
             flash(message, 'danger')
     
+    # Get data for form
     plan_service = PlanService()
     plans = plan_service.get_active_plans()
-    return render_template('coupons/edit.html', coupon=coupon, plans=plans)
+    
+    # Get partners for limits
+    from models import get_users_collection
+    users = get_users_collection()
+    partners_data = users.find({'role': 'PARTNER', 'is_active': True})
+    partners = [User(p) for p in partners_data]
+    
+    return render_template('coupons/edit.html', 
+                         coupon=coupon, 
+                         plans=plans,
+                         partners=partners)
 
 @coupons_bp.route('/<coupon_id>/toggle-status', methods=['POST'])
 @login_required

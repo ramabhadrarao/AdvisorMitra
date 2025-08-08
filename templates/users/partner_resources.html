@@ -1,0 +1,249 @@
+<!-- templates/users/partner_resources.html -->
+<!-- Partner's assigned plans and coupons view -->
+{% extends "base.html" %}
+
+{% block title %}My Resources - Financial Planning System{% endblock %}
+
+{% block content %}
+<div class="page-header d-print-none">
+    <div class="container-xl">
+        <div class="row g-2 align-items-center">
+            <div class="col">
+                <h2 class="page-title">My Resources</h2>
+                <div class="text-muted mt-1">Plans and coupons assigned to your account</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="page-body">
+    <div class="container-xl">
+        <!-- Stats Overview -->
+        <div class="row row-cards mb-4">
+            <div class="col-sm-6 col-lg-3">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <div class="subheader">Assigned Plans</div>
+                        </div>
+                        <div class="h1 mb-3">{{ assigned_plans|length }}</div>
+                        <div class="d-flex mb-2">
+                            <div>Available for agents</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-sm-6 col-lg-3">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <div class="subheader">Assigned Coupons</div>
+                        </div>
+                        <div class="h1 mb-3">{{ assigned_coupons|length }}</div>
+                        <div class="d-flex mb-2">
+                            <div>Available for use</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-sm-6 col-lg-3">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <div class="subheader">PDF Limit</div>
+                        </div>
+                        <div class="h1 mb-3">{{ current_user.pdf_limit }}</div>
+                        <div class="d-flex mb-2">
+                            <div>Total allowed</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-sm-6 col-lg-3">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <div class="subheader">PDFs Used</div>
+                        </div>
+                        <div class="h1 mb-3">{{ pdf_used }}</div>
+                        <div class="progress progress-sm">
+                            <div class="progress-bar bg-primary" style="width: {{ (pdf_used / current_user.pdf_limit * 100) if current_user.pdf_limit > 0 else 0 }}%" role="progressbar"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Assigned Plans -->
+        <div class="row row-cards">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Assigned Plans</h3>
+                    </div>
+                    {% if assigned_plans %}
+                    <div class="table-responsive">
+                        <table class="table card-table table-vcenter text-nowrap">
+                            <thead>
+                                <tr>
+                                    <th>Plan Name</th>
+                                    <th>Period</th>
+                                    <th>Price</th>
+                                    <th>PDF Limit</th>
+                                    <th>Features</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for plan in assigned_plans %}
+                                <tr>
+                                    <td>
+                                        <div>{{ plan.name }}</div>
+                                        {% if plan.description %}
+                                        <div class="small text-muted">{{ plan.description }}</div>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ plan.get_period_display() }}</td>
+                                    <td>₹{{ plan.price }}</td>
+                                    <td>{{ plan.pdf_limit }}</td>
+                                    <td>
+                                        {% if plan.features %}
+                                            <ul class="list-unstyled mb-0">
+                                                {% for feature in plan.features[:3] %}
+                                                <li class="small">• {{ feature }}</li>
+                                                {% endfor %}
+                                                {% if plan.features|length > 3 %}
+                                                <li class="small text-muted">... +{{ plan.features|length - 3 }} more</li>
+                                                {% endif %}
+                                            </ul>
+                                        {% else %}
+                                            <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-{{ 'success' if plan.is_active else 'danger' }}">
+                                            {{ 'Active' if plan.is_active else 'Inactive' }}
+                                        </span>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="card-body">
+                        <div class="empty">
+                            <p class="empty-title">No plans assigned</p>
+                            <p class="empty-subtitle text-muted">
+                                Contact your super admin to assign plans to your account.
+                            </p>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Assigned Coupons -->
+        <div class="row row-cards mt-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Assigned Coupons</h3>
+                    </div>
+                    {% if assigned_coupons %}
+                    <div class="table-responsive">
+                        <table class="table card-table table-vcenter text-nowrap">
+                            <thead>
+                                <tr>
+                                    <th>Code</th>
+                                    <th>Name</th>
+                                    <th>Discount</th>
+                                    <th>Your Usage</th>
+                                    <th>Validity</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for coupon in assigned_coupons %}
+                                <tr>
+                                    <td>
+                                        <code>{{ coupon.code }}</code>
+                                    </td>
+                                    <td>
+                                        <div>{{ coupon.name }}</div>
+                                        {% if coupon.description %}
+                                        <div class="small text-muted">{{ coupon.description }}</div>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if coupon.discount_type == 'PERCENTAGE' %}
+                                            {{ coupon.discount_value }}%
+                                            {% if coupon.max_discount_amount %}
+                                                <div class="small text-muted">Max: ₹{{ coupon.max_discount_amount }}</div>
+                                            {% endif %}
+                                        {% else %}
+                                            ₹{{ coupon.discount_value }}
+                                        {% endif %}
+                                        {% if coupon.min_purchase_amount > 0 %}
+                                            <div class="small text-muted">Min: ₹{{ coupon.min_purchase_amount }}</div>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if coupon.usage_stats %}
+                                            {{ coupon.usage_stats.used }} / {{ coupon.usage_stats.limit if coupon.usage_stats.limit else '∞' }}
+                                            {% if coupon.usage_stats.limit %}
+                                            <div class="progress progress-sm">
+                                                <div class="progress-bar bg-primary" style="width: {{ (coupon.usage_stats.used / coupon.usage_stats.limit * 100) }}%" role="progressbar"></div>
+                                            </div>
+                                            {% endif %}
+                                        {% else %}
+                                            <span class="text-muted">No limit</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if coupon.valid_from %}
+                                            <div class="small">From: {{ coupon.valid_from.strftime('%Y-%m-%d') }}</div>
+                                        {% endif %}
+                                        {% if coupon.valid_until %}
+                                            <div class="small">Until: {{ coupon.valid_until.strftime('%Y-%m-%d') }}</div>
+                                        {% else %}
+                                            <div class="small text-muted">No expiry</div>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if coupon.is_active %}
+                                            {% set is_valid, validity_message = coupon.is_valid() %}
+                                            {% if is_valid %}
+                                                <span class="badge bg-success">Active</span>
+                                            {% else %}
+                                                <span class="badge bg-warning" title="{{ validity_message }}">{{ validity_message }}</span>
+                                            {% endif %}
+                                        {% else %}
+                                            <span class="badge bg-danger">Inactive</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="card-body">
+                        <div class="empty">
+                            <p class="empty-title">No coupons assigned</p>
+                            <p class="empty-subtitle text-muted">
+                                Contact your super admin to assign coupons to your account.
+                            </p>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

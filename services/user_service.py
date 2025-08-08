@@ -6,8 +6,9 @@ from bson import ObjectId
 from models import get_users_collection, get_plans_collection, get_registration_links_collection
 from models.user import User
 from models.plan import Plan
-from utils.helpers import log_activity, calculate_plan_expiry, generate_registration_link
+from utils.helpers import log_activity, calculate_plan_expiry, generate_registration_link, check_partner_pdf_limit
 import secrets
+from flask_login import current_user
 
 class UserService:
     def __init__(self):
@@ -52,6 +53,7 @@ class UserService:
         partner_data['updated_at'] = datetime.utcnow()
         partner_data['created_by'] = ObjectId(created_by_id)
         partner_data['approval_status'] = 'APPROVED' if not partner_data.get('requires_double_approval') else 'PENDING'
+        partner_data['pdf_generated'] = 0
         
         # Handle approval
         if not partner_data.get('requires_double_approval'):
@@ -137,6 +139,9 @@ class UserService:
         agent_data['approval_status'] = 'PENDING'
         agent_data['registered_via_link'] = token
         agent_data['registration_link_sent_by'] = link['created_by']
+        agent_data['is_active'] = True
+        agent_data['agent_pdf_generated'] = 0
+        agent_data['agent_pdf_limit'] = 0
         
         # Check if double approval is required
         partner = self.users.find_one({'_id': link['partner_id']})
@@ -385,3 +390,139 @@ class UserService:
             'pdf_generated': total_pdfs_generated,
             'pdf_remaining': max(0, partner.get('pdf_limit', 0) - total_pdfs_generated)
         }
+    
+    def update_user(self, user_id, update_data, updated_by_id):
+        """Update user details"""
+        # Remove fields that shouldn't be updated directly
+        update_data.pop('_id', None)
+        update_data.pop('username', None)
+        update_data.pop('role', None)
+        update_data.pop('created_at', None)
+        update_data.pop('password', None)
+        
+        # Check if email is being changed
+        if 'email' in update_data:
+            existing = self.users.find_one({
+                '$and': [
+                    {'_id': {'$ne': ObjectId(user_id)}},
+                    {'email': update_data['email']}
+                ]
+            })
+            
+            if existing:
+                return False, "Email already exists"
+        
+        # Convert plan and coupon IDs to ObjectId for partners
+        if 'assigned_plans' in update_data:
+            update_data['assigned_plans'] = [ObjectId(pid) for pid in update_data['assigned_plans'] if pid]
+        
+        if 'assigned_coupons' in update_data:
+            update_data['assigned_coupons'] = [ObjectId(cid) for cid in update_data['assigned_coupons'] if cid]
+        
+        # Set updated timestamp
+        update_data['updated_at'] = datetime.utcnow()
+        
+        # Update user
+        result = self.users.update_one(
+            {'_id': ObjectId(user_id)},
+            {'$set': update_data}
+        )
+        
+        if result.modified_count > 0:
+            # Log activity
+            log_activity(
+                updated_by_id,
+                'USER_UPDATED',
+                f"Updated user details",
+                {'user_id': user_id}
+            )
+            return True, "User updated successfully"
+        
+        return True, "No changes made"
+    
+    def assign_plan_to_agent(self, agent_id, plan_id, assigned_by_id, coupon_code=None):
+        """Assign plan to agent with optional coupon"""
+        # Get agent
+        agent_data = self.users.find_one({'_id': ObjectId(agent_id), 'role': 'AGENT'})
+        if not agent_data:
+            return False, "Agent not found"
+        
+        agent = User(agent_data)
+        
+        # Check if agent is approved
+        if agent.approval_status != 'APPROVED':
+            return False, "Agent must be approved before assigning a plan"
+        
+        # Get plan
+        plan_data = self.plans.find_one({'_id': ObjectId(plan_id), 'is_active': True})
+        if not plan_data:
+            return False, "Plan not found or inactive"
+        
+        plan = Plan(plan_data)
+        
+        # Check if assigner is partner and plan is in their assigned plans
+        if not current_user.is_super_admin():
+            partner_data = self.users.find_one({'_id': ObjectId(assigned_by_id), 'role': 'PARTNER'})
+            if partner_data and partner_data.get('assigned_plans'):
+                if ObjectId(plan_id) not in partner_data['assigned_plans']:
+                    return False, "This plan is not assigned to your account"
+        
+        # Check partner PDF limit
+        if agent.partner_id:
+            can_assign, message = check_partner_pdf_limit(str(agent.partner_id))
+            if not can_assign:
+                return False, message
+        
+        # Calculate plan expiry
+        plan_expiry = calculate_plan_expiry(plan)
+        
+        # Apply coupon if provided
+        final_price = plan.price
+        if coupon_code:
+            from services.coupon_service import CouponService
+            coupon_service = CouponService()
+            
+            # Use partner ID for coupon validation if agent has partner
+            validator_id = str(agent.partner_id) if agent.partner_id else assigned_by_id
+            
+            success, message, discount = coupon_service.validate_and_apply_coupon_for_partner(
+                coupon_code,
+                plan.price,
+                plan_id,
+                validator_id
+            )
+            
+            if success:
+                final_price = plan.price - discount
+            else:
+                return False, f"Coupon error: {message}"
+        
+        # Update agent with plan details
+        update_data = {
+            'plan_id': ObjectId(plan_id),
+            'plan_start_date': datetime.utcnow(),
+            'plan_expiry_date': plan_expiry,
+            'agent_pdf_limit': plan.pdf_limit,
+            'agent_pdf_generated': 0,  # Reset PDF count
+            'plan_price_paid': final_price,
+            'plan_coupon_used': coupon_code,
+            'updated_at': datetime.utcnow()
+        }
+        
+        self.users.update_one(
+            {'_id': ObjectId(agent_id)},
+            {'$set': update_data}
+        )
+        
+        # Log activity
+        log_activity(
+            assigned_by_id,
+            'PLAN_ASSIGNED',
+            f"Assigned plan '{plan.name}' to agent",
+            {
+                'agent_id': agent_id,
+                'plan_id': plan_id,
+                'price': final_price,
+                'coupon': coupon_code
+            }
+        )

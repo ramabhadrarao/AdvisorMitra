@@ -1,0 +1,380 @@
+<!-- templates/users/partners.html -->
+<!-- Partners list view for super admin -->
+{% extends "base.html" %}
+
+{% block title %}Partners - Financial Planning System{% endblock %}
+
+{% block content %}
+<div class="page-header d-print-none">
+    <div class="container-xl">
+        <div class="row g-2 align-items-center">
+            <div class="col">
+                <h2 class="page-title">Partners Management</h2>
+                <div class="text-muted mt-1">Manage all partners in the system</div>
+            </div>
+            <div class="col-auto ms-auto d-print-none">
+                <div class="btn-list">
+                    <a href="{{ url_for('users.create_partner') }}" class="btn btn-primary">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 5l0 14" /><path d="M5 12l14 0" /></svg>
+                        Create Partner
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="page-body">
+    <div class="container-xl">
+        <!-- Stats Cards -->
+        <div class="row row-cards mb-4">
+            <div class="col-sm-6 col-lg-3">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <div class="subheader">Total Partners</div>
+                        </div>
+                        <div class="h1 mb-3">{{ total }}</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-lg-3">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <div class="subheader">Active Partners</div>
+                        </div>
+                        <div class="h1 mb-3">{{ active_count }}</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-lg-3">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <div class="subheader">Total PDF Limit</div>
+                        </div>
+                        <div class="h1 mb-3">{{ total_pdf_limit }}</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-lg-3">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <div class="subheader">Total PDFs Used</div>
+                        </div>
+                        <div class="h1 mb-3">{{ total_pdf_used }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Partners Table -->
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">All Partners</h3>
+                <div class="card-actions">
+                    <form method="get" class="d-flex">
+                        <select name="status" class="form-select me-2" style="width: auto;" onchange="this.form.submit()">
+                            <option value="">All Status</option>
+                            <option value="active" {{ 'selected' if request.args.get('status') == 'active' }}>Active</option>
+                            <option value="inactive" {{ 'selected' if request.args.get('status') == 'inactive' }}>Inactive</option>
+                        </select>
+                    </form>
+                </div>
+            </div>
+            <div class="table-responsive">
+                <table class="table card-table table-vcenter text-nowrap">
+                    <thead>
+                        <tr>
+                            <th>Partner</th>
+                            <th>Contact</th>
+                            <th>Agents</th>
+                            <th>PDF Usage</th>
+                            <th>Resources</th>
+                            <th>Status</th>
+                            <th>Created</th>
+                            <th class="w-1"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for partner in partners %}
+                        <tr>
+                            <td>
+                                <div class="d-flex py-1 align-items-center">
+                                    <span class="avatar me-2" style="background-image: url({{ url_for('static', filename='uploads/profiles/' + (partner.profile_image or 'default.png')) }})"></span>
+                                    <div class="flex-fill">
+                                        <div class="font-weight-medium">{{ partner.full_name or partner.username }}</div>
+                                        <div class="text-muted">@{{ partner.username }}</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <div>{{ partner.email }}</div>
+                                <div class="small text-muted">{{ partner.phone or '-' }}</div>
+                            </td>
+                            <td>
+                                <div id="partner-agents-{{ partner.id }}">
+                                    <span class="text-muted">Loading...</span>
+                                </div>
+                            </td>
+                            <td>
+                                <div id="partner-pdf-{{ partner.id }}">
+                                    <span class="text-muted">Loading...</span>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="small">
+                                    Plans: {{ partner.assigned_plans|length if partner.assigned_plans else 0 }}<br>
+                                    Coupons: {{ partner.assigned_coupons|length if partner.assigned_coupons else 0 }}
+                                </div>
+                            </td>
+                            <td>
+                                {% if partner.is_active %}
+                                    {% if partner.approval_status == 'APPROVED' %}
+                                        <span class="badge bg-success">Active</span>
+                                    {% else %}
+                                        <span class="badge bg-warning">{{ partner.get_approval_status_display() }}</span>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="badge bg-danger">Inactive</span>
+                                {% endif %}
+                                {% if partner.requires_double_approval %}
+                                    <span class="badge bg-info" title="Requires double approval">2x</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-muted">
+                                {{ partner.created_at.strftime('%Y-%m-%d') if partner.created_at else '-' }}
+                            </td>
+                            <td>
+                                <div class="btn-list flex-nowrap">
+                                    <div class="dropdown">
+                                        <button class="btn btn-sm dropdown-toggle align-text-top" data-bs-toggle="dropdown">
+                                            Actions
+                                        </button>
+                                        <div class="dropdown-menu dropdown-menu-end">
+                                            <a class="dropdown-item" href="{{ url_for('users.edit_user', user_id=partner.id) }}">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 7h-3a2 2 0 0 0 -2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2 -2v-3" /><path d="M9 15h3l8.5 -8.5a1.5 1.5 0 0 0 -3 -3l-8.5 8.5v3" /><line x1="16" y1="5" x2="19" y2="8" /></svg>
+                                                Edit Details
+                                            </a>
+                                            <a class="dropdown-item" href="#" onclick="updatePDFLimit('{{ partner.id }}', '{{ partner.full_name or partner.username }}', {{ partner.pdf_limit }})">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M14 3v4a1 1 0 0 0 1 1h4" /><path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" /><line x1="9" y1="9" x2="10" y2="9" /><line x1="9" y1="13" x2="15" y2="13" /><line x1="9" y1="17" x2="15" y2="17" /></svg>
+                                                Update PDF Limit
+                                            </a>
+                                            <a class="dropdown-item" href="{{ url_for('users.list', role='AGENT') }}?partner_id={{ partner.id }}">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 7m-4 0a4 4 0 1 0 8 0a4 4 0 1 0 -8 0" /><path d="M3 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" /></svg>
+                                                View Agents
+                                            </a>
+                                            <div class="dropdown-divider"></div>
+                                            <a class="dropdown-item" href="#" onclick="generatePartnerLink('{{ partner.id }}')">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-.5 .5" /><path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l.5 -.5" /></svg>
+                                                Generate Agent Link
+                                            </a>
+                                            {% if partner.id != current_user.id %}
+                                            <div class="dropdown-divider"></div>
+                                            <form method="post" action="{{ url_for('users.toggle_status', user_id=partner.id) }}" class="d-inline">
+                                                <button type="submit" class="dropdown-item text-{{ 'danger' if partner.is_active else 'success' }}">
+                                                    {% if partner.is_active %}
+                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M7 7h10v10" /></svg>
+                                                        Deactivate
+                                                    {% else %}
+                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M7 12l5 5l7 -7" /></svg>
+                                                        Activate
+                                                    {% endif %}
+                                                </button>
+                                            </form>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            {% if total_pages > 1 %}
+            <div class="card-footer d-flex align-items-center">
+                <p class="m-0 text-muted">Showing <span>{{ (page - 1) * per_page + 1 }}</span> to <span>{{ min(page * per_page, total) }}</span> of <span>{{ total }}</span> entries</p>
+                <ul class="pagination m-0 ms-auto">
+                    {% if page > 1 %}
+                    <li class="page-item">
+                        <a class="page-link" href="{{ url_for('users.partners', page=page-1, status=request.args.get('status')) }}">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M15 6l-6 6l6 6" /></svg>
+                            prev
+                        </a>
+                    </li>
+                    {% endif %}
+                    
+                    {% for p in range(1, total_pages + 1) %}
+                        {% if p == page %}
+                            <li class="page-item active"><a class="page-link">{{ p }}</a></li>
+                        {% else %}
+                            <li class="page-item">
+                                <a class="page-link" href="{{ url_for('users.partners', page=p, status=request.args.get('status')) }}">{{ p }}</a>
+                            </li>
+                        {% endif %}
+                    {% endfor %}
+                    
+                    {% if page < total_pages %}
+                    <li class="page-item">
+                        <a class="page-link" href="{{ url_for('users.partners', page=page+1, status=request.args.get('status')) }}">
+                            next
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 6l6 6l-6 6" /></svg>
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Update PDF Limit Modal -->
+<div class="modal modal-blur fade" id="pdfLimitModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <form method="post" id="pdfLimitForm">
+                <div class="modal-header">
+                    <h5 class="modal-title">Update PDF Limit</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Partner</label>
+                        <input type="text" class="form-control" id="partnerName" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label required">PDF Limit</label>
+                        <input type="number" name="pdf_limit" id="pdfLimit" class="form-control" min="0" required>
+                        <small class="form-hint">Total PDFs that partner's agents can generate</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn me-auto" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Update Limit</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Registration Link Modal -->
+<div class="modal modal-blur fade" id="linkModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Agent Registration Link</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <label class="form-label">Registration Link</label>
+                <div class="input-group">
+                    <input type="text" id="registration_link" class="form-control" readonly>
+                    <button class="btn btn-primary" onclick="copyLink()">Copy</button>
+                </div>
+                <small class="form-hint">Share this link with the agent to register</small>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Load partner statistics
+async function loadPartnerStats() {
+    const partners = document.querySelectorAll('[id^="partner-agents-"], [id^="partner-pdf-"]');
+    const partnerIds = new Set();
+    
+    partners.forEach(el => {
+        const match = el.id.match(/partner-(?:agents|pdf)-(.+)/);
+        if (match) partnerIds.add(match[1]);
+    });
+    
+    for (const partnerId of partnerIds) {
+        try {
+            const response = await fetch(`/users/api/partner-stats/${partnerId}`);
+            const data = await response.json();
+            
+            if (data.success) {
+                const agentsEl = document.getElementById(`partner-agents-${partnerId}`);
+                const pdfEl = document.getElementById(`partner-pdf-${partnerId}`);
+                
+                if (agentsEl) {
+                    agentsEl.innerHTML = `
+                        <div>${data.stats.active_agents}/${data.stats.total_agents} agents</div>
+                        ${data.stats.pending_agents > 0 ? `<div class="small text-warning">${data.stats.pending_agents} pending</div>` : ''}
+                    `;
+                }
+                
+                if (pdfEl) {
+                    const percentage = data.stats.pdf_limit > 0 ? (data.stats.pdf_generated / data.stats.pdf_limit * 100) : 0;
+                    pdfEl.innerHTML = `
+                        <div>${data.stats.pdf_generated}/${data.stats.pdf_limit}</div>
+                        <div class="progress progress-sm">
+                            <div class="progress-bar bg-primary" style="width: ${percentage}%" role="progressbar"></div>
+                        </div>
+                    `;
+                }
+            }
+        } catch (error) {
+            console.error(`Error loading stats for partner ${partnerId}:`, error);
+        }
+    }
+}
+
+// Update PDF limit
+function updatePDFLimit(partnerId, partnerName, currentLimit) {
+    document.getElementById('partnerName').value = partnerName;
+    document.getElementById('pdfLimit').value = currentLimit;
+    const form = document.getElementById('pdfLimitForm');
+    form.action = `/users/${partnerId}/update-limits`;
+    const modal = new bootstrap.Modal(document.getElementById('pdfLimitModal'));
+    modal.show();
+}
+
+// Generate registration link
+async function generatePartnerLink(partnerId) {
+    try {
+        const response = await fetch('/users/generate-registration-link', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: `partner_id=${partnerId}`
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            document.getElementById('registration_link').value = data.registration_url;
+            const modal = new bootstrap.Modal(document.getElementById('linkModal'));
+            modal.show();
+        } else {
+            alert('Error generating link: ' + data.error);
+        }
+    } catch (error) {
+        console.error('Error generating link:', error);
+        alert('Error generating link');
+    }
+}
+
+// Copy link to clipboard
+function copyLink() {
+    const input = document.getElementById('registration_link');
+    input.select();
+    document.execCommand('copy');
+    alert('Link copied to clipboard!');
+}
+
+// Load stats on page load
+document.addEventListener('DOMContentLoaded', loadPartnerStats);
+</script>
+{% endblock %}

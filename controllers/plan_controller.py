@@ -1,3 +1,6 @@
+# controllers/plan_controller.py
+# Plan controller for subscription management
+
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from flask_login import login_required, current_user
 from services.plan_service import PlanService

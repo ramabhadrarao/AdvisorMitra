@@ -8,6 +8,7 @@ from config import config
 from models.user import User
 from models import get_users_collection
 from datetime import datetime
+from bson import ObjectId
 
 # Import controllers
 from controllers.auth_controller import auth_bp
@@ -102,9 +103,6 @@ def create_app(config_name='default'):
         auth_service.create_initial_super_admin()
     
     return app
-
-# Import ObjectId here to avoid circular imports
-from bson import ObjectId
 
 if __name__ == '__main__':
     app = create_app(os.getenv('FLASK_ENV', 'development'))

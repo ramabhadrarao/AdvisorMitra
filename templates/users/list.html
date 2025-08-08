@@ -1,3 +1,5 @@
+<!-- templates/users/list.html -->
+<!-- Fixed users list template - removed create button -->
 {% extends "base.html" %}
 
 {% block title %}Users - Financial Planning System{% endblock %}
@@ -8,14 +10,6 @@
         <div class="row g-2 align-items-center">
             <div class="col">
                 <h2 class="page-title">Users</h2>
-            </div>
-            <div class="col-auto ms-auto d-print-none">
-                <div class="btn-list">
-                    <a href="{{ url_for('users.create') }}" class="btn btn-primary">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 5l0 14" /><path d="M5 12l14 0" /></svg>
-                        Create User
-                    </a>
-                </div>
             </div>
         </div>
     </div>
@@ -30,9 +24,9 @@
                     <form method="get" class="d-flex">
                         <select name="role" class="form-select me-2" style="width: auto;" onchange="this.form.submit()">
                             <option value="">All Roles</option>
-                            {% if current_user.is_owner() %}
-                            <option value="OWNER" {{ 'selected' if request.args.get('role') == 'OWNER' }}>Owner</option>
-                            <option value="ADMIN" {{ 'selected' if request.args.get('role') == 'ADMIN' }}>Admin</option>
+                            {% if current_user.is_super_admin() %}
+                            <option value="SUPER_ADMIN" {{ 'selected' if request.args.get('role') == 'SUPER_ADMIN' }}>Super Admin</option>
+                            <option value="PARTNER" {{ 'selected' if request.args.get('role') == 'PARTNER' }}>Partner</option>
                             {% endif %}
                             <option value="AGENT" {{ 'selected' if request.args.get('role') == 'AGENT' }}>Agent</option>
                         </select>
@@ -68,9 +62,13 @@
                             <td class="text-muted">{{ user.email }}</td>
                             <td class="text-muted">{{ user.phone or '-' }}</td>
                             <td>
-                                <span class="badge bg-{{ 'danger' if user.role == 'OWNER' else 'primary' if user.role == 'ADMIN' else 'success' }}">
-                                    {{ user.role }}
-                                </span>
+                                {% if user.role == 'SUPER_ADMIN' %}
+                                    <span class="badge bg-danger">Super Admin</span>
+                                {% elif user.role == 'PARTNER' %}
+                                    <span class="badge bg-primary">Partner</span>
+                                {% else %}
+                                    <span class="badge bg-success">Agent</span>
+                                {% endif %}
                             </td>
                             <td>
                                 <span class="badge bg-{{ 'success' if user.is_active else 'danger' }}">
@@ -82,7 +80,7 @@
                                     {% if user.plan is defined and user.plan %}
                                         <div class="text-muted">
                                             <small>{{ user.plan.name }}</small><br>
-                                            <small>{{ user.pdf_generated }}/{{ user.pdf_limit }} PDFs</small>
+                                            <small>{{ user.agent_pdf_generated }}/{{ user.agent_pdf_limit }} PDFs</small>
                                         </div>
                                     {% else %}
                                         <span class="text-muted">No plan</span>
@@ -97,17 +95,11 @@
                             <td>
                                 <div class="btn-list flex-nowrap">
                                     {% if user.id != current_user.id %}
-                                        <form method="post" action="{{ url_for('users.toggle_status', user_id=user.id) }}" class="d-inline">
-                                            <button type="submit" class="btn btn-sm btn-{{ 'warning' if user.is_active else 'success' }}">
-                                                {{ 'Deactivate' if user.is_active else 'Activate' }}
-                                            </button>
-                                        </form>
-                                    {% endif %}
-                                    
-                                    {% if user.role == 'AGENT' and current_user.is_owner() %}
+                                        {% if user.role == 'AGENT' and current_user.is_admin() %}
                                         <button class="btn btn-sm btn-info" data-bs-toggle="modal" data-bs-target="#assignPlanModal" data-user-id="{{ user.id }}" data-user-name="{{ user.full_name or user.username }}">
                                             Assign Plan
                                         </button>
+                                        {% endif %}
                                     {% endif %}
                                 </div>
                             </td>
@@ -158,7 +150,7 @@
 </div>
 
 <!-- Assign Plan Modal -->
-{% if current_user.is_owner() %}
+{% if current_user.is_admin() %}
 <div class="modal modal-blur fade" id="assignPlanModal" tabindex="-1" role="dialog" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered" role="document">
         <div class="modal-content">
@@ -236,7 +228,7 @@
 
 {% block extra_js %}
 <script>
-{% if current_user.is_owner() %}
+{% if current_user.is_admin() %}
 let plansData = {};
 let currentPlanPrice = 0;
 let currentDiscount = 0;

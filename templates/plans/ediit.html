@@ -1,0 +1,148 @@
+<!-- templates/plans/edit.html -->
+<!-- Edit plan form -->
+{% extends "base.html" %}
+
+{% block title %}Edit Plan - Financial Planning System{% endblock %}
+
+{% block content %}
+<div class="page-header d-print-none">
+    <div class="container-xl">
+        <div class="row g-2 align-items-center">
+            <div class="col">
+                <h2 class="page-title">Edit Plan</h2>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="page-body">
+    <div class="container-xl">
+        <div class="row">
+            <div class="col-12 col-md-8 mx-auto">
+                <form method="post" class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Plan Details</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label required">Plan Name</label>
+                            <input type="text" name="name" class="form-control" value="{{ plan.name }}" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Description</label>
+                            <textarea name="description" class="form-control" rows="3">{{ plan.description or '' }}</textarea>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label required">Period Type</label>
+                                <select name="period_type" class="form-select" required onchange="updatePeriodLabel(this.value)">
+                                    <option value="MONTHLY" {% if plan.period_type == 'MONTHLY' %}selected{% endif %}>Monthly</option>
+                                    <option value="YEARLY" {% if plan.period_type == 'YEARLY' %}selected{% endif %}>Yearly</option>
+                                    <option value="CUSTOM" {% if plan.period_type == 'CUSTOM' %}selected{% endif %}>Custom (Days)</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label required" id="periodValueLabel">
+                                    {% if plan.period_type == 'MONTHLY' %}
+                                        Period (Months)
+                                    {% elif plan.period_type == 'YEARLY' %}
+                                        Period (Years)
+                                    {% else %}
+                                        Period (Days)
+                                    {% endif %}
+                                </label>
+                                <input type="number" name="period_value" class="form-control" value="{{ plan.period_value }}" min="1" required>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label required">Price (₹)</label>
+                                <input type="number" name="price" class="form-control" value="{{ plan.price }}" min="0" step="0.01" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label required">PDF Generation Limit</label>
+                                <input type="number" name="pdf_limit" class="form-control" value="{{ plan.pdf_limit }}" min="0" required>
+                                <small class="form-hint">Maximum number of PDFs that can be generated</small>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Features</label>
+                            <div id="featuresContainer">
+                                {% if plan.features %}
+                                    {% for feature in plan.features %}
+                                    <div class="input-group mb-2">
+                                        <input type="text" name="features" class="form-control" value="{{ feature }}">
+                                        <button type="button" class="btn btn-icon" onclick="removeFeature(this)">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M18 6l-12 12" /><path d="M6 6l12 12" /></svg>
+                                        </button>
+                                    </div>
+                                    {% endfor %}
+                                {% else %}
+                                    <div class="input-group mb-2">
+                                        <input type="text" name="features" class="form-control" placeholder="Feature description">
+                                        <button type="button" class="btn btn-icon" onclick="removeFeature(this)">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M18 6l-12 12" /><path d="M6 6l12 12" /></svg>
+                                        </button>
+                                    </div>
+                                {% endif %}
+                            </div>
+                            <button type="button" class="btn btn-sm btn-ghost-primary" onclick="addFeature()">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 5l0 14" /><path d="M5 12l14 0" /></svg>
+                                Add Feature
+                            </button>
+                        </div>
+                        
+                        <div class="alert alert-warning">
+                            <strong>Note:</strong> Changing plan details will not affect existing agent subscriptions. Only new subscriptions will use the updated details.
+                        </div>
+                    </div>
+                    <div class="card-footer text-end">
+                        <a href="{{ url_for('plans.list') }}" class="btn btn-link">Cancel</a>
+                        <button type="submit" class="btn btn-primary">Update Plan</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function updatePeriodLabel(periodType) {
+    const label = document.getElementById('periodValueLabel');
+    switch(periodType) {
+        case 'MONTHLY':
+            label.textContent = 'Period (Months)';
+            break;
+        case 'YEARLY':
+            label.textContent = 'Period (Years)';
+            break;
+        case 'CUSTOM':
+            label.textContent = 'Period (Days)';
+            break;
+    }
+}
+
+function addFeature() {
+    const container = document.getElementById('featuresContainer');
+    const div = document.createElement('div');
+    div.className = 'input-group mb-2';
+    div.innerHTML = `
+        <input type="text" name="features" class="form-control" placeholder="Feature description">
+        <button type="button" class="btn btn-icon" onclick="removeFeature(this)">
+            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M18 6l-12 12" /><path d="M6 6l12 12" /></svg>
+        </button>
+    `;
+    container.appendChild(div);
+}
+
+function removeFeature(button) {
+    button.closest('.input-group').remove();
+}
+</script>
+{% endblock %}

@@ -1,0 +1,150 @@
+<!-- templates/coupons/edit.html -->
+<!-- Edit coupon form with partner limits -->
+{% extends "base.html" %}
+
+{% block title %}Edit Coupon - Financial Planning System{% endblock %}
+
+{% block content %}
+<div class="page-header d-print-none">
+    <div class="container-xl">
+        <div class="row g-2 align-items-center">
+            <div class="col">
+                <h2 class="page-title">Edit Coupon</h2>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="page-body">
+    <div class="container-xl">
+        <div class="row">
+            <div class="col-12 col-md-8 mx-auto">
+                <form method="post" class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Coupon Details</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Coupon Code</label>
+                                <input type="text" class="form-control" value="{{ coupon.code }}" disabled>
+                                <small class="form-hint">Code cannot be changed</small>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label required">Coupon Name</label>
+                                <input type="text" name="name" class="form-control" value="{{ coupon.name }}" required>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Description</label>
+                            <textarea name="description" class="form-control" rows="2">{{ coupon.description or '' }}</textarea>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label required">Discount Type</label>
+                                <select name="discount_type" class="form-select" required onchange="toggleMaxDiscount(this.value)">
+                                    <option value="PERCENTAGE" {% if coupon.discount_type == 'PERCENTAGE' %}selected{% endif %}>Percentage</option>
+                                    <option value="FIXED" {% if coupon.discount_type == 'FIXED' %}selected{% endif %}>Fixed Amount</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label required">Discount Value</label>
+                                <input type="number" name="discount_value" class="form-control" value="{{ coupon.discount_value }}" min="0" step="0.01" required>
+                                <small class="form-hint">Enter percentage or amount</small>
+                            </div>
+                            <div class="col-md-4 mb-3" id="maxDiscountDiv" style="{% if coupon.discount_type != 'PERCENTAGE' %}display: none;{% endif %}">
+                                <label class="form-label">Max Discount (₹)</label>
+                                <input type="number" name="max_discount_amount" class="form-control" value="{{ coupon.max_discount_amount or '' }}" min="0" step="0.01">
+                                <small class="form-hint">For percentage discounts</small>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Min Purchase Amount (₹)</label>
+                                <input type="number" name="min_purchase_amount" class="form-control" value="{{ coupon.min_purchase_amount }}" min="0" step="0.01">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Overall Usage Limit</label>
+                                <input type="number" name="usage_limit" class="form-control" value="{{ coupon.usage_limit or '' }}" min="1">
+                                <small class="form-hint">Leave empty for unlimited. Current usage: {{ coupon.used_count }}</small>
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Valid From</label>
+                                <input type="datetime-local" name="valid_from" class="form-control" value="{{ coupon.valid_from.strftime('%Y-%m-%dT%H:%M') if coupon.valid_from else '' }}">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Valid Until</label>
+                                <input type="datetime-local" name="valid_until" class="form-control" value="{{ coupon.valid_until.strftime('%Y-%m-%dT%H:%M') if coupon.valid_until else '' }}">
+                                <small class="form-hint">Leave empty for no expiry</small>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Applicable Plans</label>
+                            <select name="applicable_plans" class="form-select" multiple>
+                                {% for plan in plans %}
+                                <option value="{{ plan.id }}" {% if plan._id in coupon.applicable_plans %}selected{% endif %}>
+                                    {{ plan.name }} - {{ plan.get_period_display() }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <small class="form-hint">Leave empty to apply to all plans. Hold Ctrl/Cmd to select multiple</small>
+                        </div>
+                        
+                        <hr>
+                        
+                        <h4>Partner Usage Limits</h4>
+                        <div class="alert alert-info">
+                            Set individual usage limits for each partner. Leave empty for no limit.
+                        </div>
+                        
+                        <div id="partnerLimitsContainer">
+                            {% for partner in partners %}
+                            <div class="row mb-2">
+                                <div class="col-md-6">
+                                    <label class="form-label">{{ partner.full_name or partner.username }}</label>
+                                </div>
+                                <div class="col-md-3">
+                                    <input type="number" name="partner_limit_{{ partner.id }}" class="form-control" 
+                                           placeholder="Limit" min="0"
+                                           value="{{ coupon.partner_limits.get(partner.id, {}).get('limit', '') if hasattr(coupon, 'partner_limits') else '' }}">
+                                </div>
+                                <div class="col-md-3">
+                                    <span class="form-text">
+                                        Used: {{ coupon.partner_limits.get(partner.id, {}).get('used', 0) if hasattr(coupon, 'partner_limits') else 0 }}
+                                    </span>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="card-footer text-end">
+                        <a href="{{ url_for('coupons.list') }}" class="btn btn-link">Cancel</a>
+                        <button type="submit" class="btn btn-primary">Update Coupon</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function toggleMaxDiscount(discountType) {
+    const maxDiscountDiv = document.getElementById('maxDiscountDiv');
+    if (discountType === 'PERCENTAGE') {
+        maxDiscountDiv.style.display = 'block';
+    } else {
+        maxDiscountDiv.style.display = 'none';
+        document.querySelector('input[name="max_discount_amount"]').value = '';
+    }
+}
+</script>
+{% endblock %}

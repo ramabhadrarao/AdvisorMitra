@@ -1,0 +1,588 @@
+<!-- templates/users/agents.html -->
+<!-- Agents list view for super admin and partners -->
+{% extends "base.html" %}
+
+{% block title %}Agents - Financial Planning System{% endblock %}
+
+{% block content %}
+<div class="page-header d-print-none">
+    <div class="container-xl">
+        <div class="row g-2 align-items-center">
+            <div class="col">
+                <h2 class="page-title">Agents Management</h2>
+                <div class="text-muted mt-1">
+                    {% if current_user.is_super_admin() %}
+                        Manage all agents in the system
+                    {% else %}
+                        Manage your registered agents
+                    {% endif %}
+                </div>
+            </div>
+            <div class="col-auto ms-auto d-print-none">
+                <div class="btn-list">
+                    <button class="btn btn-primary" onclick="generateAgentLink()">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-.5 .5" /><path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l.5 -.5" /></svg>
+                        Generate Registration Link
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="page-body">
+    <div class="container-xl">
+        <!-- Agents Table -->
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">
+                    {% if request.args.get('partner_id') and selected_partner %}
+                        Agents of {{ selected_partner.full_name or selected_partner.username }}
+                    {% else %}
+                        All Agents
+                    {% endif %}
+                </h3>
+                <div class="card-actions">
+                    <form method="get" class="d-flex">
+                        {% if current_user.is_super_admin() %}
+                        <select name="partner_id" class="form-select me-2" style="width: auto;" onchange="this.form.submit()">
+                            <option value="">All Partners</option>
+                            {% for partner in partners_list %}
+                            <option value="{{ partner.id }}" {{ 'selected' if request.args.get('partner_id') == partner.id }}>
+                                {{ partner.full_name or partner.username }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        {% endif %}
+                        <select name="status" class="form-select me-2" style="width: auto;" onchange="this.form.submit()">
+                            <option value="">All Status</option>
+                            <option value="APPROVED" {{ 'selected' if request.args.get('status') == 'APPROVED' }}>Approved</option>
+                            <option value="PENDING" {{ 'selected' if request.args.get('status') == 'PENDING' }}>Pending</option>
+                            <option value="PARTNER_APPROVED" {{ 'selected' if request.args.get('status') == 'PARTNER_APPROVED' }}>Partner Approved</option>
+                            <option value="REJECTED" {{ 'selected' if request.args.get('status') == 'REJECTED' }}>Rejected</option>
+                        </select>
+                    </form>
+                </div>
+            </div>
+            <div class="table-responsive">
+                <table class="table card-table table-vcenter text-nowrap">
+                    <thead>
+                        <tr>
+                            <th>Agent</th>
+                            <th>Contact</th>
+                            {% if current_user.is_super_admin() %}
+                            <th>Partner</th>
+                            {% endif %}
+                            <th>Plan</th>
+                            <th>PDF Usage</th>
+                            <th>Status</th>
+                            <th>Registered</th>
+                            <th class="w-1"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for agent in agents %}
+                        <tr>
+                            <td>
+                                <div class="d-flex py-1 align-items-center">
+                                    <span class="avatar me-2" style="background-image: url({{ url_for('static', filename='uploads/profiles/' + (agent.profile_image or 'default.png')) }})"></span>
+                                    <div class="flex-fill">
+                                        <div class="font-weight-medium">{{ agent.full_name or agent.username }}</div>
+                                        <div class="text-muted">@{{ agent.username }}</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <div>{{ agent.email }}</div>
+                                <div class="small text-muted">{{ agent.phone or '-' }}</div>
+                            </td>
+                            {% if current_user.is_super_admin() %}
+                            <td>
+                                {% if hasattr(agent, 'partner') and agent.partner %}
+                                    <div>{{ agent.partner.full_name or agent.partner.username }}</div>
+                                    <div class="small text-muted">@{{ agent.partner.username }}</div>
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            {% endif %}
+                            <td>
+                                {% if agent.plan_id and hasattr(agent, 'plan') and agent.plan %}
+                                    <div>{{ agent.plan.name }}</div>
+                                    <div class="small text-muted">
+                                        {% if agent.plan_expiry_date %}
+                                            {% set now = datetime.utcnow() %}
+                                            {% if agent.plan_expiry_date > now %}
+                                                <span class="text-success">Active until {{ agent.plan_expiry_date.strftime('%Y-%m-%d') }}</span>
+                                            {% else %}
+                                                <span class="text-danger">Expired on {{ agent.plan_expiry_date.strftime('%Y-%m-%d') }}</span>
+                                            {% endif %}
+                                        {% else %}
+                                            No expiry set
+                                        {% endif %}
+                                    </div>
+                                {% else %}
+                                    <span class="text-muted">No plan</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if agent.agent_pdf_limit > 0 %}
+                                    <div>{{ agent.agent_pdf_generated }}/{{ agent.agent_pdf_limit }}</div>
+                                    <div class="progress progress-sm">
+                                        <div class="progress-bar bg-primary" style="width: {{ (agent.agent_pdf_generated / agent.agent_pdf_limit * 100) }}%" role="progressbar"></div>
+                                    </div>
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if agent.approval_status == 'APPROVED' %}
+                                    <span class="badge bg-success">Approved</span>
+                                {% elif agent.approval_status == 'PENDING' %}
+                                    <span class="badge bg-warning">Pending</span>
+                                {% elif agent.approval_status == 'PARTNER_APPROVED' %}
+                                    <span class="badge bg-info">Partner Approved</span>
+                                {% elif agent.approval_status == 'REJECTED' %}
+                                    <span class="badge bg-danger" title="{{ agent.rejection_reason }}">Rejected</span>
+                                {% endif %}
+                                {% if agent.requires_double_approval %}
+                                    <span class="badge bg-secondary" title="Requires double approval">2x</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-muted">
+                                {{ agent.created_at.strftime('%Y-%m-%d') if agent.created_at else '-' }}
+                            </td>
+                            <td>
+                                <div class="btn-list flex-nowrap">
+                                    <div class="dropdown">
+                                        <button class="btn btn-sm dropdown-toggle align-text-top" data-bs-toggle="dropdown">
+                                            Actions
+                                        </button>
+                                        <div class="dropdown-menu dropdown-menu-end">
+                                            {% if agent.approval_status in ['PENDING', 'PARTNER_APPROVED'] %}
+                                                {% if current_user.is_partner() and not agent.partner_approved and agent.approval_status == 'PENDING' %}
+                                                <form method="post" action="{{ url_for('users.approve_user', user_id=agent.id) }}">
+                                                    <button type="submit" class="dropdown-item text-success">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M7 12l5 5l7 -7" /></svg>
+                                                        Approve Agent
+                                                    </button>
+                                                </form>
+                                                {% endif %}
+                                                {% if current_user.is_super_admin() and (agent.approval_status == 'PARTNER_APPROVED' or not agent.requires_double_approval) %}
+                                                <form method="post" action="{{ url_for('users.approve_user', user_id=agent.id) }}">
+                                                    <button type="submit" class="dropdown-item text-success">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M7 12l5 5l7 -7" /></svg>
+                                                        Final Approve
+                                                    </button>
+                                                </form>
+                                                {% endif %}
+                                                <a class="dropdown-item text-danger" href="#" onclick="showRejectModal('{{ agent.id }}', '{{ agent.full_name or agent.username }}')">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                                                    Reject
+                                                </a>
+                                                <div class="dropdown-divider"></div>
+                                            {% endif %}
+                                            
+                                            <a class="dropdown-item" href="{{ url_for('users.edit_user', user_id=agent.id) }}">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 7h-3a2 2 0 0 0 -2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2 -2v-3" /><path d="M9 15h3l8.5 -8.5a1.5 1.5 0 0 0 -3 -3l-8.5 8.5v3" /><line x1="16" y1="5" x2="19" y2="8" /></svg>
+                                                Edit Details
+                                            </a>
+                                            
+                                            {% if agent.approval_status == 'APPROVED' and not agent.plan_id %}
+                                            <a class="dropdown-item" href="#" onclick="showAssignPlanModal('{{ agent.id }}', '{{ agent.full_name or agent.username }}')">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 5h-2a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-12a2 2 0 0 0 -2 -2h-2" /><path d="M9 3m0 2a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v0a2 2 0 0 1 -2 2h-2a2 2 0 0 1 -2 -2z" /></svg>
+                                                Assign Plan
+                                            </a>
+                                            {% endif %}
+                                            
+                                            {% if agent.id != current_user.id %}
+                                            <div class="dropdown-divider"></div>
+                                            <form method="post" action="{{ url_for('users.toggle_status', user_id=agent.id) }}">
+                                                <button type="submit" class="dropdown-item text-{{ 'danger' if agent.is_active else 'success' }}">
+                                                    {% if agent.is_active %}
+                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M7 7h10v10" /></svg>
+                                                        Deactivate
+                                                    {% else %}
+                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M7 12l5 5l7 -7" /></svg>
+                                                        Activate
+                                                    {% endif %}
+                                                </button>
+                                            </form>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="{{ '8' if current_user.is_super_admin() else '7' }}" class="text-center text-muted py-4">
+                                No agents found
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            {% if total_pages > 1 %}
+            <div class="card-footer d-flex align-items-center">
+                <p class="m-0 text-muted">Showing <span>{{ (page - 1) * per_page + 1 }}</span> to <span>{{ min(page * per_page, total) }}</span> of <span>{{ total }}</span> entries</p>
+                <ul class="pagination m-0 ms-auto">
+                    {% if page > 1 %}
+                    <li class="page-item">
+                        <a class="page-link" href="{{ url_for('users.agents', page=page-1, partner_id=request.args.get('partner_id'), status=request.args.get('status')) }}">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M15 6l-6 6l6 6" /></svg>
+                            prev
+                        </a>
+                    </li>
+                    {% endif %}
+                    
+                    {% for p in range(1, total_pages + 1) %}
+                        {% if p == page %}
+                            <li class="page-item active"><a class="page-link">{{ p }}</a></li>
+                        {% else %}
+                            <li class="page-item">
+                                <a class="page-link" href="{{ url_for('users.agents', page=p, partner_id=request.args.get('partner_id'), status=request.args.get('status')) }}">{{ p }}</a>
+                            </li>
+                        {% endif %}
+                    {% endfor %}
+                    
+                    {% if page < total_pages %}
+                    <li class="page-item">
+                        <a class="page-link" href="{{ url_for('users.agents', page=page+1, partner_id=request.args.get('partner_id'), status=request.args.get('status')) }}">
+                            next
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 6l6 6l-6 6" /></svg>
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Generate Registration Link Modal -->
+<div class="modal modal-blur fade" id="generateLinkModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Generate Agent Registration Link</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                {% if current_user.is_super_admin() %}
+                <div class="mb-3">
+                    <label class="form-label">Select Partner</label>
+                    <select id="partner_select" class="form-select">
+                        <option value="">Choose a partner...</option>
+                        {% for partner in partners_list %}
+                        <option value="{{ partner.id }}">{{ partner.full_name or partner.username }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endif %}
+                <div id="link-result" style="display: none;">
+                    <label class="form-label">Registration Link</label>
+                    <div class="input-group">
+                        <input type="text" id="registration_link" class="form-control" readonly>
+                        <button class="btn btn-primary" onclick="copyLink()">Copy</button>
+                    </div>
+                    <small class="form-hint">Share this link with the agent to register</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn me-auto" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" onclick="generateLink()">Generate Link</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Reject Modal -->
+<div class="modal modal-blur fade" id="rejectModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <form method="post" id="rejectForm">
+                <div class="modal-header">
+                    <h5 class="modal-title">Reject Agent</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Agent</label>
+                        <input type="text" class="form-control" id="rejectAgentName" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label required">Rejection Reason</label>
+                        <textarea name="reason" class="form-control" rows="3" required 
+                                  placeholder="Please provide a reason for rejection..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn me-auto" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger">Reject Agent</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Assign Plan Modal -->
+<div class="modal modal-blur fade" id="assignPlanModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Assign Plan to Agent</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form method="post" id="assignPlanForm">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Agent</label>
+                        <input type="text" class="form-control" id="agentName" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Select Plan</label>
+                        <select name="plan_id" class="form-select" required onchange="updatePlanPricing(this.value)">
+                            <option value="">Choose a plan...</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Pricing Details -->
+                    <div id="pricingDetails" style="display: none;">
+                        <hr>
+                        <div class="row">
+                            <div class="col">
+                                <strong>Plan Price:</strong>
+                            </div>
+                            <div class="col-auto">
+                                ₹<span id="planPrice">0</span>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-3">
+                            <label class="form-label">Apply Coupon (Optional)</label>
+                            <div class="input-group">
+                                <input type="text" id="tempCouponCode" class="form-control" placeholder="Enter coupon code">
+                                <button type="button" class="btn btn-primary" onclick="applyCoupon()">Apply</button>
+                            </div>
+                            <input type="hidden" name="coupon_code" id="appliedCouponCode">
+                            <div id="couponMessage" class="form-hint mt-1"></div>
+                        </div>
+                        
+                        <div id="discountDetails" style="display: none;" class="mt-2">
+                            <div class="row text-success">
+                                <div class="col">
+                                    <strong>Discount:</strong>
+                                </div>
+                                <div class="col-auto">
+                                    -₹<span id="discountAmount">0</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <hr>
+                        <div class="row">
+                            <div class="col">
+                                <strong>Total Amount:</strong>
+                            </div>
+                            <div class="col-auto">
+                                <strong>₹<span id="totalAmount">0</span></strong>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn me-auto" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Assign Plan</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let plansData = {};
+let currentPlanPrice = 0;
+let currentDiscount = 0;
+
+// Generate agent registration link
+async function generateAgentLink() {
+    const modal = new bootstrap.Modal(document.getElementById('generateLinkModal'));
+    modal.show();
+}
+
+async function generateLink() {
+    {% if current_user.is_super_admin() %}
+    const partnerId = document.getElementById('partner_select').value;
+    if (!partnerId) {
+        alert('Please select a partner');
+        return;
+    }
+    {% else %}
+    const partnerId = '{{ current_user.id }}';
+    {% endif %}
+    
+    try {
+        const response = await fetch('/users/generate-registration-link', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: {% if current_user.is_super_admin() %}`partner_id=${partnerId}`{% else %}''{% endif %}
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            document.getElementById('registration_link').value = data.registration_url;
+            document.getElementById('link-result').style.display = 'block';
+        } else {
+            alert('Error generating link: ' + data.error);
+        }
+    } catch (error) {
+        console.error('Error generating link:', error);
+        alert('Error generating link');
+    }
+}
+
+// Copy link to clipboard
+function copyLink() {
+    const input = document.getElementById('registration_link');
+    input.select();
+    document.execCommand('copy');
+    alert('Link copied to clipboard!');
+}
+
+// Show reject modal
+function showRejectModal(agentId, agentName) {
+    document.getElementById('rejectAgentName').value = agentName;
+    const form = document.getElementById('rejectForm');
+    form.action = `/users/${agentId}/reject`;
+    const modal = new bootstrap.Modal(document.getElementById('rejectModal'));
+    modal.show();
+}
+
+// Show assign plan modal
+async function showAssignPlanModal(agentId, agentName) {
+    document.getElementById('agentName').value = agentName;
+    const form = document.getElementById('assignPlanForm');
+    form.action = `/users/${agentId}/assign-plan`;
+    
+    // Load available plans
+    await loadPlans();
+    
+    const modal = new bootstrap.Modal(document.getElementById('assignPlanModal'));
+    modal.show();
+}
+
+// Load plans for modal
+async function loadPlans() {
+    try {
+        const response = await fetch('/plans/api/active');
+        const data = await response.json();
+        
+        if (data.success) {
+            const select = document.querySelector('#assignPlanModal select[name="plan_id"]');
+            select.innerHTML = '<option value="">Choose a plan...</option>';
+            
+            data.plans.forEach(plan => {
+                plansData[plan.id] = plan;
+                const option = document.createElement('option');
+                option.value = plan.id;
+                option.textContent = `${plan.name} - ${plan.period_display} - ${plan.pdf_limit} PDFs - ₹${plan.price}`;
+                select.appendChild(option);
+            });
+        }
+    } catch (error) {
+        console.error('Error loading plans:', error);
+    }
+}
+
+// Update plan pricing display
+function updatePlanPricing(planId) {
+    const pricingDetails = document.getElementById('pricingDetails');
+    const planPrice = document.getElementById('planPrice');
+    const totalAmount = document.getElementById('totalAmount');
+    
+    if (planId && plansData[planId]) {
+        currentPlanPrice = plansData[planId].price;
+        planPrice.textContent = currentPlanPrice;
+        totalAmount.textContent = currentPlanPrice - currentDiscount;
+        pricingDetails.style.display = 'block';
+        
+        // Reset coupon
+        document.getElementById('tempCouponCode').value = '';
+        document.getElementById('appliedCouponCode').value = '';
+        document.getElementById('couponMessage').textContent = '';
+        document.getElementById('discountDetails').style.display = 'none';
+        currentDiscount = 0;
+    } else {
+        pricingDetails.style.display = 'none';
+    }
+}
+
+// Apply coupon
+async function applyCoupon() {
+    const couponCode = document.getElementById('tempCouponCode').value;
+    const planId = document.querySelector('select[name="plan_id"]').value;
+    const couponMessage = document.getElementById('couponMessage');
+    const discountDetails = document.getElementById('discountDetails');
+    const discountAmount = document.getElementById('discountAmount');
+    const totalAmount = document.getElementById('totalAmount');
+    
+    if (!couponCode) {
+        couponMessage.textContent = 'Please enter a coupon code';
+        couponMessage.className = 'form-hint mt-1 text-danger';
+        return;
+    }
+    
+    if (!planId) {
+        couponMessage.textContent = 'Please select a plan first';
+        couponMessage.className = 'form-hint mt-1 text-danger';
+        return;
+    }
+    
+    try {
+        const response = await fetch('/coupons/api/validate', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                code: couponCode,
+                amount: currentPlanPrice,
+                plan_id: planId
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            currentDiscount = data.discount;
+            document.getElementById('appliedCouponCode').value = couponCode;
+            discountAmount.textContent = currentDiscount;
+            totalAmount.textContent = data.final_amount;
+            couponMessage.textContent = data.message;
+            couponMessage.className = 'form-hint mt-1 text-success';
+            discountDetails.style.display = 'block';
+        } else {
+            currentDiscount = 0;
+            document.getElementById('appliedCouponCode').value = '';
+            totalAmount.textContent = currentPlanPrice;
+            couponMessage.textContent = data.message || 'Invalid coupon';
+            couponMessage.className = 'form-hint mt-1 text-danger';
+            discountDetails.style.display = 'none';
+        }
+    } catch (error) {
+        console.error('Error applying coupon:', error);
+        couponMessage.textContent = 'Error applying coupon';
+        couponMessage.className = 'form-hint mt-1 text-danger';
+    }
+}
+</script>
+{% endblock %}
