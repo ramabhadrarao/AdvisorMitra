@@ -193,7 +193,7 @@
                                         {% endif %}
                                     </td>
                                     <td>
-                                        {% if coupon.usage_stats %}
+                                        {% if coupon.usage_stats is defined %}
                                             {{ coupon.usage_stats.used }} / {{ coupon.usage_stats.limit if coupon.usage_stats.limit else '∞' }}
                                             {% if coupon.usage_stats.limit %}
                                             <div class="progress progress-sm">

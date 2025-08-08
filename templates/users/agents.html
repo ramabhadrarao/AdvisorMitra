@@ -98,7 +98,7 @@
                             </td>
                             {% if current_user.is_super_admin() %}
                             <td>
-                                {% if hasattr(agent, 'partner') and agent.partner %}
+                                {% if agent.partner is defined and agent.partner %}
                                     <div>{{ agent.partner.full_name or agent.partner.username }}</div>
                                     <div class="small text-muted">@{{ agent.partner.username }}</div>
                                 {% else %}
@@ -107,7 +107,7 @@
                             </td>
                             {% endif %}
                             <td>
-                                {% if agent.plan_id and hasattr(agent, 'plan') and agent.plan %}
+                                {% if agent.plan_id and agent.plan is defined and agent.plan %}
                                     <div>{{ agent.plan.name }}</div>
                                     <div class="small text-muted">
                                         {% if agent.plan_expiry_date %}

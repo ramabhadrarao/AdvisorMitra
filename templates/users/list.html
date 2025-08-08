@@ -1,5 +1,5 @@
 <!-- templates/users/list.html -->
-<!-- Fixed users list template - removed create button -->
+<!-- Fixed users list template - removed create button and fixed assign plan logic -->
 {% extends "base.html" %}
 
 {% block title %}Users - Financial Planning System{% endblock %}
@@ -9,7 +9,34 @@
     <div class="container-xl">
         <div class="row g-2 align-items-center">
             <div class="col">
-                <h2 class="page-title">Users</h2>
+                <h2 class="page-title">Users Management</h2>
+                <div class="text-muted mt-1">
+                    {% if current_user.is_super_admin() %}
+                        View and manage all users in the system
+                    {% else %}
+                        View and manage your agents
+                    {% endif %}
+                </div>
+            </div>
+            <div class="col-auto ms-auto d-print-none">
+                <div class="btn-list">
+                    {% if current_user.is_super_admin() %}
+                    <a href="{{ url_for('users.partners') }}" class="btn btn-primary">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 7m-4 0a4 4 0 1 0 8 0a4 4 0 1 0 -8 0" /><path d="M3 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /><path d="M21 21v-2a4 4 0 0 0 -3 -3.85" /></svg>
+                        View Partners
+                    </a>
+                    {% endif %}
+                    <a href="{{ url_for('users.agents') }}" class="btn btn-info">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 7m-4 0a4 4 0 1 0 8 0a4 4 0 1 0 -8 0" /><path d="M3 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" /></svg>
+                        View Agents
+                    </a>
+                    {% if current_user.is_super_admin() %}
+                    <a href="{{ url_for('users.pending_approvals') }}" class="btn btn-warning">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 7m-4 0a4 4 0 1 0 8 0a4 4 0 1 0 -8 0" /><path d="M3 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" /><path d="M16 11l2 2l4 -4" /></svg>
+                        Pending Approvals
+                    </a>
+                    {% endif %}
+                </div>
             </div>
         </div>
     </div>
@@ -17,9 +44,71 @@
 
 <div class="page-body">
     <div class="container-xl">
+        {% if current_user.is_partner() %}
+        <!-- Partner sees only their agents -->
+        <div class="alert alert-info">
+            <div class="d-flex">
+                <div>
+                    <h4 class="alert-title">Agent Management</h4>
+                    <div class="text-muted">You are viewing your registered agents. Use the navigation above to access different sections.</div>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <!-- Super Admin sees quick stats -->
+        <div class="row row-cards mb-4">
+            <div class="col-sm-6 col-lg-3">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <div class="subheader">Total Partners</div>
+                        </div>
+                        <div class="h1 mb-3" id="total-partners">-</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-lg-3">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <div class="subheader">Total Agents</div>
+                        </div>
+                        <div class="h1 mb-3" id="total-agents">-</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-lg-3">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <div class="subheader">Active Users</div>
+                        </div>
+                        <div class="h1 mb-3" id="active-users">-</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-lg-3">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <div class="subheader">Pending Approvals</div>
+                        </div>
+                        <div class="h1 mb-3" id="pending-approvals">-</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
         <div class="card">
             <div class="card-header">
-                <h3 class="card-title">All Users</h3>
+                <h3 class="card-title">
+                    {% if current_user.is_partner() %}
+                        Your Agents
+                    {% else %}
+                        All Users
+                    {% endif %}
+                </h3>
                 <div class="card-actions">
                     <form method="get" class="d-flex">
                         <select name="role" class="form-select me-2" style="width: auto;" onchange="this.form.submit()">
@@ -42,7 +131,7 @@
                             <th>Phone</th>
                             <th>Role</th>
                             <th>Status</th>
-                            <th>Plan</th>
+                            <th>Plan/Usage</th>
                             <th>Created</th>
                             <th class="w-1"></th>
                         </tr>
@@ -71,9 +160,18 @@
                                 {% endif %}
                             </td>
                             <td>
-                                <span class="badge bg-{{ 'success' if user.is_active else 'danger' }}">
-                                    {{ 'Active' if user.is_active else 'Inactive' }}
-                                </span>
+                                {% if user.approval_status == 'APPROVED' %}
+                                    <span class="badge bg-success">Active</span>
+                                {% elif user.approval_status == 'PENDING' %}
+                                    <span class="badge bg-warning">Pending</span>
+                                {% elif user.approval_status == 'PARTNER_APPROVED' %}
+                                    <span class="badge bg-info">Partner Approved</span>
+                                {% elif user.approval_status == 'REJECTED' %}
+                                    <span class="badge bg-danger">Rejected</span>
+                                {% endif %}
+                                {% if not user.is_active %}
+                                    <span class="badge bg-secondary">Inactive</span>
+                                {% endif %}
                             </td>
                             <td>
                                 {% if user.role == 'AGENT' %}
@@ -85,6 +183,10 @@
                                     {% else %}
                                         <span class="text-muted">No plan</span>
                                     {% endif %}
+                                {% elif user.role == 'PARTNER' %}
+                                    <div class="text-muted">
+                                        <small>PDF Limit: {{ user.pdf_limit }}</small>
+                                    </div>
                                 {% else %}
                                     -
                                 {% endif %}
@@ -94,13 +196,69 @@
                             </td>
                             <td>
                                 <div class="btn-list flex-nowrap">
-                                    {% if user.id != current_user.id %}
-                                        {% if user.role == 'AGENT' and current_user.is_admin() %}
-                                        <button class="btn btn-sm btn-info" data-bs-toggle="modal" data-bs-target="#assignPlanModal" data-user-id="{{ user.id }}" data-user-name="{{ user.full_name or user.username }}">
-                                            Assign Plan
+                                    <div class="dropdown">
+                                        <button class="btn btn-sm dropdown-toggle align-text-top" data-bs-toggle="dropdown">
+                                            Actions
                                         </button>
-                                        {% endif %}
-                                    {% endif %}
+                                        <div class="dropdown-menu dropdown-menu-end">
+                                            {% if user.id != current_user.id %}
+                                                <!-- Approval/Rejection actions -->
+                                                {% if user.approval_status in ['PENDING', 'PARTNER_APPROVED'] %}
+                                                    {% if current_user.is_partner() and user.role == 'AGENT' and not user.partner_approved and str(user.partner_id) == current_user.id %}
+                                                    <a class="dropdown-item text-success" href="{{ url_for('users.pending_approvals') }}">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M7 12l5 5l7 -7" /></svg>
+                                                        Go to Approvals
+                                                    </a>
+                                                    {% endif %}
+                                                    {% if current_user.is_super_admin() %}
+                                                    <a class="dropdown-item text-warning" href="{{ url_for('users.pending_approvals') }}">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                                                        Requires Approval
+                                                    </a>
+                                                    {% endif %}
+                                                    <div class="dropdown-divider"></div>
+                                                {% endif %}
+
+                                                <!-- Edit action -->
+                                                <a class="dropdown-item" href="{{ url_for('users.edit_user', user_id=user.id) }}">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 7h-3a2 2 0 0 0 -2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2 -2v-3" /><path d="M9 15h3l8.5 -8.5a1.5 1.5 0 0 0 -3 -3l-8.5 8.5v3" /><line x1="16" y1="5" x2="19" y2="8" /></svg>
+                                                    Edit Details
+                                                </a>
+                                                
+                                                <!-- Plan assignment (only for approved agents without plan) -->
+                                                {% if user.role == 'AGENT' and user.approval_status == 'APPROVED' and user.is_active and not user.plan_id %}
+                                                    {% if current_user.is_super_admin() or (current_user.is_partner() and str(user.partner_id) == current_user.id) %}
+                                                    <a class="dropdown-item" href="#" onclick="showAssignPlanModal('{{ user.id }}', '{{ user.full_name or user.username }}')">
+                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 5h-2a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-12a2 2 0 0 0 -2 -2h-2" /><path d="M9 3m0 2a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v0a2 2 0 0 1 -2 2h-2a2 2 0 0 1 -2 -2z" /></svg>
+                                                        Assign Plan
+                                                    </a>
+                                                    {% endif %}
+                                                {% endif %}
+                                                
+                                                <!-- View details based on role -->
+                                                {% if user.role == 'PARTNER' and current_user.is_super_admin() %}
+                                                <a class="dropdown-item" href="{{ url_for('users.agents') }}?partner_id={{ user.id }}">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 7m-4 0a4 4 0 1 0 8 0a4 4 0 1 0 -8 0" /><path d="M3 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" /></svg>
+                                                    View Agents
+                                                </a>
+                                                {% endif %}
+                                                
+                                                <!-- Toggle status -->
+                                                <div class="dropdown-divider"></div>
+                                                <form method="post" action="{{ url_for('users.toggle_status', user_id=user.id) }}">
+                                                    <button type="submit" class="dropdown-item text-{{ 'danger' if user.is_active else 'success' }}">
+                                                        {% if user.is_active %}
+                                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M7 7h10v10" /></svg>
+                                                            Deactivate
+                                                        {% else %}
+                                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M7 12l5 5l7 -7" /></svg>
+                                                            Activate
+                                                        {% endif %}
+                                                    </button>
+                                                </form>
+                                            {% endif %}
+                                        </div>
+                                    </div>
                                 </div>
                             </td>
                         </tr>
@@ -228,11 +386,45 @@
 
 {% block extra_js %}
 <script>
+{% if current_user.is_super_admin() %}
+// Load stats
+async function loadStats() {
+    try {
+        const response = await fetch('/api/dashboard-stats');
+        const data = await response.json();
+        
+        if (data.success) {
+            document.getElementById('total-partners').textContent = data.stats.total_partners || 0;
+            document.getElementById('total-agents').textContent = data.stats.total_agents || 0;
+            document.getElementById('active-users').textContent = (data.stats.active_partners || 0) + (data.stats.active_agents || 0);
+            document.getElementById('pending-approvals').textContent = data.stats.pending_approvals || 0;
+        }
+    } catch (error) {
+        console.error('Error loading stats:', error);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', loadStats);
+{% endif %}
+
 {% if current_user.is_admin() %}
 let plansData = {};
 let currentPlanPrice = 0;
 let currentDiscount = 0;
 let appliedCouponCode = null;
+
+// Show assign plan modal
+async function showAssignPlanModal(agentId, agentName) {
+    document.getElementById('agentName').value = agentName;
+    const form = document.getElementById('assignPlanForm');
+    form.action = `/users/${agentId}/assign-plan`;
+    
+    // Load available plans
+    await loadPlans();
+    
+    const modal = new bootstrap.Modal(document.getElementById('assignPlanModal'));
+    modal.show();
+}
 
 // Load plans for modal
 async function loadPlans() {
@@ -341,28 +533,6 @@ async function applyCoupon() {
         couponMessage.className = 'form-hint mt-1 text-danger';
     }
 }
-
-// Handle assign plan modal
-document.getElementById('assignPlanModal').addEventListener('show.bs.modal', function (event) {
-    const button = event.relatedTarget;
-    const userId = button.getAttribute('data-user-id');
-    const userName = button.getAttribute('data-user-name');
-    
-    document.getElementById('agentName').value = userName;
-    const baseUrl = "{{ url_for('users.assign_plan', user_id='PLACEHOLDER') }}";
-    document.getElementById('assignPlanForm').action = baseUrl.replace('PLACEHOLDER', userId);
-    
-    // Reset form
-    document.querySelector('select[name="plan_id"]').value = '';
-    document.getElementById('pricingDetails').style.display = 'none';
-    document.getElementById('tempCouponCode').value = '';
-    document.getElementById('appliedCouponCode').value = '';
-    currentDiscount = 0;
-    appliedCouponCode = null;
-});
-
-// Load plans on page load
-document.addEventListener('DOMContentLoaded', loadPlans);
 {% endif %}
 </script>
 {% endblock %}

@@ -56,7 +56,7 @@
                                 </span>
                             </td>
                             <td>
-                                {% if user.role == 'AGENT' and hasattr(user, 'partner') %}
+                                {% if user.role == 'AGENT' and user.partner is defined %}
                                     {{ user.partner.full_name or user.partner.username }}
                                 {% else %}
                                     -

@@ -113,11 +113,11 @@
                                 <div class="col-md-3">
                                     <input type="number" name="partner_limit_{{ partner.id }}" class="form-control" 
                                            placeholder="Limit" min="0"
-                                           value="{{ coupon.partner_limits.get(partner.id, {}).get('limit', '') if hasattr(coupon, 'partner_limits') else '' }}">
+                                           value="{{ coupon.partner_limits.get(partner.id, {}).get('limit', '') if coupon.partner_limits is defined else '' }}">
                                 </div>
                                 <div class="col-md-3">
                                     <span class="form-text">
-                                        Used: {{ coupon.partner_limits.get(partner.id, {}).get('used', 0) if hasattr(coupon, 'partner_limits') else 0 }}
+                                        Used: {{ coupon.partner_limits.get(partner.id, {}).get('used', 0) if coupon.partner_limits is defined else 0 }}
                                     </span>
                                 </div>
                             </div>

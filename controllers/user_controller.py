@@ -13,13 +13,19 @@ import os
 from datetime import datetime
 
 from models import get_users_collection
+from models.user import User
 from bson import ObjectId
+
 users_bp = Blueprint('users', __name__)
 
 @users_bp.route('/')
 @login_required
 @admin_required
 def list():
+    # For partners, redirect to agents view
+    if current_user.is_partner():
+        return redirect(url_for('users.agents'))
+    
     page = request.args.get('page', 1, type=int)
     role_filter = request.args.get('role')
     status_filter = request.args.get('status')
@@ -37,6 +43,8 @@ def list():
         result = user_service.get_all_users_with_partners(filters, page, 10)
     # Partner sees only their agents
     elif current_user.is_partner():
+        filters['role'] = 'AGENT'
+        filters['partner_id'] = ObjectId(current_user.id)
         result = user_service.get_partner_agents(current_user.id, filters, page, 10)
     else:
         result = {'users': [], 'total': 0, 'page': 1, 'per_page': 10, 'total_pages': 0}
@@ -369,80 +377,6 @@ def assign_plan(user_id):
     
     return redirect(url_for('users.list'))
 
-# API endpoints with proper permission checks
-@users_bp.route('/api/partner-stats/<partner_id>')
-@login_required
-def api_partner_stats(partner_id):
-    # Check permissions
-    if not current_user.is_super_admin() and current_user.id != partner_id:
-        return jsonify({'error': 'Unauthorized'}), 403
-    
-    user_service = UserService()
-    stats = user_service.get_partner_statistics(partner_id)
-    
-    if stats:
-        return jsonify({'success': True, 'stats': stats})
-    else:
-        return jsonify({'success': False, 'error': 'Partner not found'}), 404
-
-@users_bp.route('/api/list')
-@login_required
-def api_users_list():
-    """API endpoint to get users list"""
-    if not current_user.is_admin():
-        return jsonify({'error': 'Unauthorized'}), 403
-    
-    page = request.args.get('page', 1, type=int)
-    role_filter = request.args.get('role')
-    
-    filters = {}
-    if role_filter:
-        filters['role'] = role_filter
-    
-    user_service = UserService()
-    
-    if current_user.is_super_admin():
-        result = user_service.get_all_users_with_partners(filters, page, 10)
-    elif current_user.is_partner():
-        result = user_service.get_partner_agents(current_user.id, filters, page, 10)
-    else:
-        result = {'users': [], 'total': 0, 'page': 1, 'per_page': 10, 'total_pages': 0}
-    
-    # Convert users to dict format
-    users_data = []
-    for user in result['users']:
-        user_dict = {
-            'id': user.id,
-            'username': user.username,
-            'email': user.email,
-            'full_name': user.full_name,
-            'role': user.role,
-            'is_active': user.is_active,
-            'approval_status': user.approval_status,
-            'created_at': user.created_at.isoformat() if user.created_at else None
-        }
-        
-        if user.role == 'AGENT':
-            user_dict['partner_id'] = str(user.partner_id) if user.partner_id else None
-            user_dict['pdf_generated'] = user.agent_pdf_generated
-            user_dict['pdf_limit'] = user.agent_pdf_limit
-            if hasattr(user, 'plan') and user.plan:
-                user_dict['plan'] = {
-                    'id': user.plan.id,
-                    'name': user.plan.name
-                }
-        
-        users_data.append(user_dict)
-    
-    return jsonify({
-        'success': True,
-        'users': users_data,
-        'total': result['total'],
-        'page': result['page'],
-        'total_pages': result['total_pages']
-    })
-# Add these methods to controllers/user_controller.py:
-
 @users_bp.route('/partners')
 @login_required
 @super_admin_required
@@ -581,3 +515,76 @@ def toggle_status(user_id):
     
     flash(f'User {status_text} successfully.', 'success')
     return redirect(request.referrer or url_for('users.list'))
+
+# API endpoints with proper permission checks
+@users_bp.route('/api/partner-stats/<partner_id>')
+@login_required
+def api_partner_stats(partner_id):
+    # Check permissions
+    if not current_user.is_super_admin() and current_user.id != partner_id:
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    user_service = UserService()
+    stats = user_service.get_partner_statistics(partner_id)
+    
+    if stats:
+        return jsonify({'success': True, 'stats': stats})
+    else:
+        return jsonify({'success': False, 'error': 'Partner not found'}), 404
+
+@users_bp.route('/api/list')
+@login_required
+def api_users_list():
+    """API endpoint to get users list"""
+    if not current_user.is_admin():
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    page = request.args.get('page', 1, type=int)
+    role_filter = request.args.get('role')
+    
+    filters = {}
+    if role_filter:
+        filters['role'] = role_filter
+    
+    user_service = UserService()
+    
+    if current_user.is_super_admin():
+        result = user_service.get_all_users_with_partners(filters, page, 10)
+    elif current_user.is_partner():
+        result = user_service.get_partner_agents(current_user.id, filters, page, 10)
+    else:
+        result = {'users': [], 'total': 0, 'page': 1, 'per_page': 10, 'total_pages': 0}
+    
+    # Convert users to dict format
+    users_data = []
+    for user in result['users']:
+        user_dict = {
+            'id': user.id,
+            'username': user.username,
+            'email': user.email,
+            'full_name': user.full_name,
+            'role': user.role,
+            'is_active': user.is_active,
+            'approval_status': user.approval_status,
+            'created_at': user.created_at.isoformat() if user.created_at else None
+        }
+        
+        if user.role == 'AGENT':
+            user_dict['partner_id'] = str(user.partner_id) if user.partner_id else None
+            user_dict['pdf_generated'] = user.agent_pdf_generated
+            user_dict['pdf_limit'] = user.agent_pdf_limit
+            if hasattr(user, 'plan') and user.plan:
+                user_dict['plan'] = {
+                    'id': user.plan.id,
+                    'name': user.plan.name
+                }
+        
+        users_data.append(user_dict)
+    
+    return jsonify({
+        'success': True,
+        'users': users_data,
+        'total': result['total'],
+        'page': result['page'],
+        'total_pages': result['total_pages']
+    })

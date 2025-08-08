@@ -453,6 +453,15 @@ class UserService:
         if agent.approval_status != 'APPROVED':
             return False, "Agent must be approved before assigning a plan"
         
+        # Check if agent is active
+        if not agent.is_active:
+            return False, "Agent must be active to assign a plan"
+        
+        # Check if agent already has an active plan
+        if agent.plan_id and agent.plan_expiry_date:
+            if agent.plan_expiry_date > datetime.utcnow():
+                return False, "Agent already has an active plan"
+        
         # Get plan
         plan_data = self.plans.find_one({'_id': ObjectId(plan_id), 'is_active': True})
         if not plan_data:
@@ -461,6 +470,7 @@ class UserService:
         plan = Plan(plan_data)
         
         # Check if assigner is partner and plan is in their assigned plans
+        from flask_login import current_user
         if not current_user.is_super_admin():
             partner_data = self.users.find_one({'_id': ObjectId(assigned_by_id), 'role': 'PARTNER'})
             if partner_data and partner_data.get('assigned_plans'):
@@ -526,3 +536,5 @@ class UserService:
                 'coupon': coupon_code
             }
         )
+        
+        return True, f"Plan '{plan.name}' assigned successfully to agent"
