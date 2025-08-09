@@ -156,6 +156,10 @@
                                                 <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M14 3v4a1 1 0 0 0 1 1h4" /><path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" /><path d="M9 15l2 2l4 -4" /></svg>
                                                 View Receipt
                                             </a>
+                                            <a href="{{ url_for('users.view_payment_proof', filename=agent.payment_proof) }}" class="small ms-2" target="_blank">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2" /><path d="M7 11l5 5l5 -5" /><path d="M12 4l0 12" /></svg>
+                                                Direct Link
+                                            </a>
                                         {% endif %}
                                     {% else %}
                                         <span class="badge bg-warning">Pending</span>
@@ -978,8 +982,11 @@ function showPaymentDetailsModal(agentId, agentName, paymentData) {
 }
 
 // View payment proof
+// View payment proof
 function viewPaymentProof(agentId, agentName) {
+    console.log('Viewing payment proof for agent:', agentId, agentName);
     const paymentData = agentsPaymentData[agentId];
+    console.log('Payment data:', paymentData);
     
     if (!paymentData || !paymentData.payment_proof) {
         alert('No payment proof available');
@@ -989,6 +996,8 @@ function viewPaymentProof(agentId, agentName) {
     document.getElementById('proofAgentName').textContent = agentName;
     
     const proofUrl = `/users/payment-proof/${paymentData.payment_proof}`;
+    console.log('Payment proof URL:', proofUrl);
+    
     const proofContent = document.getElementById('proofContent');
     const downloadBtn = document.getElementById('downloadProofBtn');
     
@@ -997,6 +1006,7 @@ function viewPaymentProof(agentId, agentName) {
     
     // Check file extension
     const fileExt = paymentData.payment_proof.split('.').pop().toLowerCase();
+    console.log('File extension:', fileExt);
     
     if (['jpg', 'jpeg', 'png', 'gif'].includes(fileExt)) {
         // Display image
@@ -1004,6 +1014,14 @@ function viewPaymentProof(agentId, agentName) {
         img.src = proofUrl;
         img.className = 'img-fluid';
         img.style.maxHeight = '70vh';
+        img.alt = 'Payment Proof';
+        img.onerror = function() {
+            console.error('Error loading image from:', proofUrl);
+            proofContent.innerHTML = '<p class="text-danger">Error loading image. Please try downloading the file.</p>';
+        };
+        img.onload = function() {
+            console.log('Image loaded successfully from:', proofUrl);
+        };
         proofContent.appendChild(img);
     } else if (fileExt === 'pdf') {
         // Display PDF in iframe
@@ -1012,6 +1030,10 @@ function viewPaymentProof(agentId, agentName) {
         iframe.style.width = '100%';
         iframe.style.height = '70vh';
         iframe.style.border = 'none';
+        iframe.onerror = function() {
+            console.error('Error loading PDF from:', proofUrl);
+            proofContent.innerHTML = '<p class="text-danger">Error loading PDF. Please try downloading the file.</p>';
+        };
         proofContent.appendChild(iframe);
     } else {
         // Unknown file type
@@ -1021,6 +1043,11 @@ function viewPaymentProof(agentId, agentName) {
     // Set download link
     downloadBtn.href = proofUrl;
     downloadBtn.download = `payment_proof_${agentName.replace(/\s+/g, '_')}_${paymentData.payment_proof}`;
+    downloadBtn.onclick = function(e) {
+        e.preventDefault();
+        // Force download by opening in new window
+        window.open(proofUrl + '?download=true', '_blank');
+    };
     
     // Show modal
     if (typeof bootstrap !== 'undefined') {

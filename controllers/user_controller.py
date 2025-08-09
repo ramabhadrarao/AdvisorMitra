@@ -377,8 +377,9 @@ def api_payment_details(user_id):
 @admin_required
 def view_payment_proof(filename):
     """Serve payment proof file"""
-    from flask import send_from_directory
+    from flask import send_from_directory, current_app, request
     import os
+    import mimetypes
     
     # Security check - ensure filename is safe
     if '..' in filename or filename.startswith('/'):
@@ -394,7 +395,19 @@ def view_payment_proof(filename):
     directory = os.path.dirname(file_path)
     filename = os.path.basename(file_path)
     
-    return send_from_directory(directory, filename)
+    # Check if download is requested
+    force_download = request.args.get('download') == 'true'
+    
+    # Get mime type
+    mimetype, _ = mimetypes.guess_type(file_path)
+    
+    return send_from_directory(
+        directory, 
+        filename, 
+        as_attachment=force_download,
+        mimetype=mimetype
+    )
+
 @users_bp.route('/<user_id>/assign-plan', methods=['POST'])
 @login_required
 @admin_required
