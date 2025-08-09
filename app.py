@@ -4,30 +4,31 @@
 import os
 from flask import Flask, render_template, redirect, url_for
 from flask_login import LoginManager, current_user
+from flask_mail import Mail
 from config import config
 from models.user import User
 from models import get_users_collection
 from datetime import datetime
 from bson import ObjectId
 
-# Import controllers
-from controllers.auth_controller import auth_bp
-from controllers.user_controller import users_bp
-from controllers.plan_controller import plans_bp
-from controllers.coupon_controller import coupons_bp
-from controllers.dashboard_controller import dashboard_bp as dashboard_api_bp
-
 # Import services
 from services.auth_service import AuthService
+
+# Initialize Flask extensions
+mail = Mail()
 
 def create_app(config_name='default'):
     app = Flask(__name__)
     app.config.from_object(config[config_name])
     
+    # Initialize Flask-Mail
+    mail.init_app(app)
+    
     # Create upload directories
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
     os.makedirs(app.config['PROFILE_UPLOAD_FOLDER'], exist_ok=True)
     os.makedirs(app.config.get('PAYMENT_UPLOAD_FOLDER', 'static/uploads/payments'), exist_ok=True)
+    
     # Initialize Flask-Login
     login_manager = LoginManager()
     login_manager.init_app(app)
@@ -39,6 +40,13 @@ def create_app(config_name='default'):
         users = get_users_collection()
         user_data = users.find_one({'_id': ObjectId(user_id)})
         return User(user_data) if user_data else None
+    
+    # Import controllers here to avoid circular imports
+    from controllers.auth_controller import auth_bp
+    from controllers.user_controller import users_bp
+    from controllers.plan_controller import plans_bp
+    from controllers.coupon_controller import coupons_bp
+    from controllers.dashboard_controller import dashboard_bp as dashboard_api_bp
     
     # Register blueprints
     app.register_blueprint(auth_bp, url_prefix='/auth')
@@ -74,6 +82,9 @@ def create_app(config_name='default'):
     
     @dashboard_bp.route('/')
     def index():
+        if not current_user.is_authenticated:
+            return redirect(url_for('auth.login'))
+            
         if current_user.is_super_admin():
             return render_template('dashboard/super_admin_dashboard.html')
         elif current_user.is_partner():

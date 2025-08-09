@@ -1,5 +1,3 @@
-<!-- templates/auth/register_agent.html -->
-<!-- Agent self-registration page -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -8,20 +6,124 @@
     <meta http-equiv="X-UA-Compatible" content="ie=edge"/>
     <title>Agent Registration - Financial Planning System</title>
     <link href="https://unpkg.com/@tabler/core@latest/dist/css/tabler.min.css" rel="stylesheet"/>
+    <style>
+        body {
+            font-size: 0.875rem;
+        }
+        .registration-container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .form-section {
+            margin-bottom: 1.5rem;
+            padding: 1rem;
+            background: #f8f9fa;
+            border-radius: 0.5rem;
+        }
+        .form-section-title {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+            color: #206bc4;
+            border-bottom: 2px solid #e9ecef;
+            padding-bottom: 0.3rem;
+        }
+        .radio-group {
+            display: flex;
+            gap: 1rem;
+            margin-top: 0.25rem;
+        }
+        .required-field::after {
+            content: " *";
+            color: #d63939;
+        }
+        .registration-header {
+            background: linear-gradient(135deg, #206bc4 0%, #1a5aa0 100%);
+            color: white;
+            padding: 1rem 0;
+            margin-bottom: 1rem;
+        }
+        .registration-header h1 {
+            font-size: 1.5rem;
+            margin-bottom: 0.25rem;
+        }
+        .registration-header .lead {
+            font-size: 0.9rem;
+        }
+        .form-label {
+            font-size: 0.8rem;
+            margin-bottom: 0.25rem;
+        }
+        .form-control, .form-select {
+            font-size: 0.875rem;
+            padding: 0.375rem 0.75rem;
+        }
+        .form-hint {
+            font-size: 0.75rem;
+            margin-top: 0.125rem;
+        }
+        .mb-3 {
+            margin-bottom: 0.75rem !important;
+        }
+        .card-title {
+            font-size: 1.25rem;
+        }
+        .btn-lg {
+            padding: 0.5rem 2rem;
+            font-size: 0.9rem;
+        }
+        @media (max-width: 768px) {
+            .registration-container {
+                padding: 0 0.5rem;
+            }
+            .form-section {
+                padding: 0.75rem;
+            }
+        }
+        /* Compact form layout */
+        .compact-row {
+            display: flex;
+            flex-wrap: wrap;
+            margin: -0.25rem;
+        }
+        .compact-row > div {
+            padding: 0.25rem;
+        }
+        .page {
+            min-height: auto;
+        }
+        .card-body {
+            padding: 1.25rem;
+        }
+        /* Two column layout for service questions */
+        .service-questions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+        @media (max-width: 768px) {
+            .service-questions {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
 </head>
-<body class="d-flex flex-column">
-    <div class="page page-center">
-        <div class="container container-tight py-4">
-            <div class="text-center mb-4">
-                <a href="." class="navbar-brand navbar-brand-autodark">
+<body>
+    <div class="page">
+        <div class="registration-header">
+            <div class="container">
+                <div class="text-center">
                     <h1>AdvisorMitra</h1>
-                </a>
+                    <p class="lead mb-0">Financial Planning System - Agent Registration</p>
+                </div>
             </div>
-            
+        </div>
+        
+        <div class="container registration-container py-2">
             {% with messages = get_flashed_messages(with_categories=true) %}
                 {% if messages %}
                     {% for category, message in messages %}
-                        <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible" role="alert">
+                        <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible mb-2" role="alert">
                             <div class="d-flex">
                                 <div>{{ message }}</div>
                             </div>
@@ -31,47 +133,276 @@
                 {% endif %}
             {% endwith %}
             
-            <div class="card card-md">
+            <div class="card">
                 <div class="card-body">
-                    <h2 class="h2 text-center mb-4">Agent Registration</h2>
-                    <form action="{{ url_for('auth.register_agent', token=token) }}" method="POST">
-                        <div class="mb-3">
-                            <label class="form-label required">Username</label>
-                            <input type="text" name="username" class="form-control" placeholder="Choose a username" required>
-                            <small class="form-hint">This will be used for login</small>
+                    <h2 class="card-title text-center mb-3">Agent Registration Form</h2>
+                    <p class="text-muted text-center mb-3" style="font-size: 0.8rem;">Fields marked with <span class="text-danger">*</span> are mandatory</p>
+                    
+                    <form action="{{ url_for('auth.register_agent', token=token) }}" method="POST" id="registrationForm">
+                        <div class="row">
+                            <div class="col-lg-6">
+                                <!-- Personal Information Section -->
+                                <div class="form-section">
+                                    <h3 class="form-section-title">Personal Information</h3>
+                                    <div class="compact-row">
+                                        <div class="col-4">
+                                            <label class="form-label required-field">Salutation</label>
+                                            <select name="salutation" class="form-select form-select-sm" required>
+                                                <option value="">Select</option>
+                                                <option value="Mr">Mr</option>
+                                                <option value="Mrs">Mrs</option>
+                                                <option value="Ms">Ms</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-8">
+                                            <label class="form-label required-field">Full Name</label>
+                                            <input type="text" name="full_name" class="form-control form-control-sm" 
+                                                   placeholder="As required in Report" required maxlength="20">
+                                            <small class="form-hint">Max 20 characters</small>
+                                        </div>
+                                        <div class="col-12 mt-2">
+                                            <label class="form-label required-field">Gender</label>
+                                            <select name="gender" class="form-select form-select-sm" required>
+                                                <option value="">Select Gender</option>
+                                                <option value="Male">Male</option>
+                                                <option value="Female">Female</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Contact Information Section -->
+                                <div class="form-section">
+                                    <h3 class="form-section-title">Contact Information</h3>
+                                    <div class="mb-2">
+                                        <label class="form-label required-field">Email</label>
+                                        <input type="email" name="email" class="form-control form-control-sm" 
+                                               placeholder="your@email.com" required>
+                                    </div>
+                                    <div class="mb-2">
+                                        <label class="form-label required-field">Confirm Email</label>
+                                        <input type="email" name="confirm_email" class="form-control form-control-sm" 
+                                               placeholder="your@email.com" required>
+                                    </div>
+                                    <div class="compact-row">
+                                        <div class="col-md-6">
+                                            <label class="form-label required-field">Mobile Number</label>
+                                            <input type="tel" name="phone" class="form-control form-control-sm" 
+                                                   placeholder="9000090000" pattern="[0-9]{10}" required>
+                                            <small class="form-hint">10 digits only</small>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label required-field">City</label>
+                                            <select name="city" class="form-select form-select-sm" required>
+                                                <option value="">Select City</option>
+                                                <option value="Ahmedabad">Ahmedabad</option>
+                                                <option value="Bengaluru">Bengaluru</option>
+                                                <option value="Bhopal">Bhopal</option>
+                                                <option value="Bhubaneswar">Bhubaneswar</option>
+                                                <option value="Chandigarh">Chandigarh</option>
+                                                <option value="Chennai">Chennai</option>
+                                                <option value="Coimbatore">Coimbatore</option>
+                                                <option value="Delhi">Delhi</option>
+                                                <option value="Faridabad">Faridabad</option>
+                                                <option value="Gurugram">Gurugram</option>
+                                                <option value="Hyderabad">Hyderabad</option>
+                                                <option value="Indore">Indore</option>
+                                                <option value="Jaipur">Jaipur</option>
+                                                <option value="Kanpur">Kanpur</option>
+                                                <option value="Kolkata">Kolkata</option>
+                                                <option value="Lucknow">Lucknow</option>
+                                                <option value="Mumbai">Mumbai</option>
+                                                <option value="Nagpur">Nagpur</option>
+                                                <option value="Pune">Pune</option>
+                                                <option value="Surat">Surat</option>
+                                                <option value="Others">Others</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-lg-6">
+                                <!-- Professional Information Section -->
+                                <div class="form-section">
+                                    <h3 class="form-section-title">Professional Information</h3>
+                                    <div class="mb-2">
+                                        <label class="form-label required-field">Organization</label>
+                                        <select name="organization" class="form-select form-select-sm" required>
+                                            <option value="">Select Organization</option>
+                                            <option value="Aditya Birla Health Insurance">Aditya Birla Health Insurance</option>
+                                            <option value="Aditya Birla Sun Life Insurance">Aditya Birla Sun Life Insurance</option>
+                                            <option value="Bajaj Allianz Health Insurance">Bajaj Allianz Health Insurance</option>
+                                            <option value="Bharti AXA Life Insurance">Bharti AXA Life Insurance</option>
+                                            <option value="HDFC ERGO Health Insurance">HDFC ERGO Health Insurance</option>
+                                            <option value="HDFC Life Insurance">HDFC Life Insurance</option>
+                                            <option value="ICICI Lombard Health Insurance">ICICI Lombard Health Insurance</option>
+                                            <option value="ICICI Prudential Life Insurance">ICICI Prudential Life Insurance</option>
+                                            <option value="Iffco Tokio Health Insurance">Iffco Tokio Health Insurance</option>
+                                            <option value="Kotak Mahindra Life Insurance">Kotak Mahindra Life Insurance</option>
+                                            <option value="Life Insurance Corporation of India (LIC)">Life Insurance Corporation of India (LIC)</option>
+                                            <option value="ManipalCigna Health Insurance">ManipalCigna Health Insurance</option>
+                                            <option value="Max Life Insurance">Max Life Insurance</option>
+                                            <option value="New India Assurance Health Insurance">New India Assurance Health Insurance</option>
+                                            <option value="Reliance Nippon Life Insurance">Reliance Nippon Life Insurance</option>
+                                            <option value="SBI Life Insurance">SBI Life Insurance</option>
+                                            <option value="Star Health and Allied Insurance">Star Health and Allied Insurance</option>
+                                            <option value="Tata AIA Life Insurance">Tata AIA Life Insurance</option>
+                                            <option value="Tata AIG Health Insurance">Tata AIG Health Insurance</option>
+                                            <option value="Others">Others</option>
+                                        </select>
+                                    </div>
+                                    <div class="mb-2">
+                                        <label class="form-label required-field">Role</label>
+                                        <select name="professional_role" class="form-select form-select-sm" required>
+                                            <option value="">Select Role</option>
+                                            <option value="Agent - LIC">Agent - LIC</option>
+                                            <option value="Agent - Others">Agent - Others</option>
+                                            <option value="Certified Financial Planner">Certified Financial Planner</option>
+                                            <option value="Client Relationship Manager">Client Relationship Manager</option>
+                                            <option value="Development Officer - LIC">Development Officer - LIC</option>
+                                            <option value="Development Officer - Others">Development Officer - Others</option>
+                                            <option value="Financial Advisor">Financial Advisor</option>
+                                            <option value="Insurance Advisor">Insurance Advisor</option>
+                                            <option value="Insurance Consultant">Insurance Consultant</option>
+                                            <option value="Insurance Sales Specialist">Insurance Sales Specialist</option>
+                                            <option value="Sales Executive">Sales Executive</option>
+                                            <option value="Sales Manager">Sales Manager</option>
+                                            <option value="Sales Officer">Sales Officer</option>
+                                            <option value="Wealth Manager">Wealth Manager</option>
+                                            <option value="Others">Others</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <!-- Service Offerings -->
+                                    <div class="service-questions mt-3">
+                                        <div>
+                                            <label class="form-label required-field">Are you an LIC Advisor?</label>
+                                            <div class="radio-group">
+                                                <label class="form-check form-check-inline">
+                                                    <input class="form-check-input" type="radio" name="is_lic_advisor" value="yes" required>
+                                                    <span class="form-check-label">Yes</span>
+                                                </label>
+                                                <label class="form-check form-check-inline">
+                                                    <input class="form-check-input" type="radio" name="is_lic_advisor" value="no" required>
+                                                    <span class="form-check-label">No</span>
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label class="form-label required-field">Do you sell Mutual Funds?</label>
+                                            <div class="radio-group">
+                                                <label class="form-check form-check-inline">
+                                                    <input class="form-check-input" type="radio" name="sells_mutual_funds" value="yes" required>
+                                                    <span class="form-check-label">Yes</span>
+                                                </label>
+                                                <label class="form-check form-check-inline">
+                                                    <input class="form-check-input" type="radio" name="sells_mutual_funds" value="no" required>
+                                                    <span class="form-check-label">No</span>
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label class="form-label required-field">Do you sell Health Insurance?</label>
+                                            <div class="radio-group">
+                                                <label class="form-check form-check-inline">
+                                                    <input class="form-check-input" type="radio" name="sells_health_insurance" value="yes" required>
+                                                    <span class="form-check-label">Yes</span>
+                                                </label>
+                                                <label class="form-check form-check-inline">
+                                                    <input class="form-check-input" type="radio" name="sells_health_insurance" value="no" required>
+                                                    <span class="form-check-label">No</span>
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label class="form-label required-field">Do you sell pure Term Insurance?</label>
+                                            <div class="radio-group">
+                                                <label class="form-check form-check-inline">
+                                                    <input class="form-check-input" type="radio" name="sells_term_insurance" value="yes" required>
+                                                    <span class="form-check-label">Yes</span>
+                                                </label>
+                                                <label class="form-check form-check-inline">
+                                                    <input class="form-check-input" type="radio" name="sells_term_insurance" value="no" required>
+                                                    <span class="form-check-label">No</span>
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Account Information Section -->
+                                <div class="form-section">
+                                    <h3 class="form-section-title">Account Information</h3>
+                                    <div class="mb-2">
+                                        <label class="form-label required-field">Username</label>
+                                        <input type="text" name="username" class="form-control form-control-sm" 
+                                               placeholder="Choose a username" required pattern="[a-zA-Z0-9_]{4,20}">
+                                        <small class="form-hint">4-20 chars, letters/numbers/underscore</small>
+                                    </div>
+                                    <div class="compact-row">
+                                        <div class="col-md-6">
+                                            <label class="form-label required-field">Password</label>
+                                            <input type="password" name="password" class="form-control form-control-sm" 
+                                                   placeholder="••••••••" required minlength="6" id="password">
+                                            <small class="form-hint">Min 6 characters</small>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label required-field">Confirm Password</label>
+                                            <input type="password" name="confirm_password" class="form-control form-control-sm" 
+                                                   placeholder="••••••••" required minlength="6" id="confirm_password">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                        <div class="mb-3">
-                            <label class="form-label required">Email</label>
-                            <input type="email" name="email" class="form-control" placeholder="your@email.com" required>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label required">Full Name</label>
-                            <input type="text" name="full_name" class="form-control" placeholder="Your full name" required>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Phone</label>
-                            <input type="tel" name="phone" class="form-control" placeholder="+1234567890">
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label required">Password</label>
-                            <input type="password" name="password" class="form-control" placeholder="••••••••" required minlength="6">
-                            <small class="form-hint">Minimum 6 characters</small>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label required">Confirm Password</label>
-                            <input type="password" name="confirm_password" class="form-control" placeholder="••••••••" required minlength="6">
-                        </div>
-                        <div class="form-footer">
-                            <button type="submit" class="btn btn-primary w-100">Register</button>
+
+                        <div class="form-footer text-center mt-3">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 7m-4 0a4 4 0 1 0 8 0a4 4 0 1 0 -8 0" /><path d="M3 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" /><path d="M16 11l2 2l4 -4" /></svg>
+                                Complete Registration
+                            </button>
+                            <div class="mt-2">
+                                <small>Already have an account? <a href="{{ url_for('auth.login') }}">Login here</a></small>
+                            </div>
                         </div>
                     </form>
                 </div>
             </div>
-            <div class="text-center text-muted mt-3">
-                Already have an account? <a href="{{ url_for('auth.login') }}">Login here</a>
-            </div>
         </div>
     </div>
+    
     <script src="https://unpkg.com/@tabler/core@latest/dist/js/tabler.min.js"></script>
+    <script>
+        document.getElementById('registrationForm').addEventListener('submit', function(e) {
+            // Validate email match
+            const email = document.querySelector('input[name="email"]').value;
+            const confirmEmail = document.querySelector('input[name="confirm_email"]').value;
+            
+            if (email !== confirmEmail) {
+                e.preventDefault();
+                alert('Email addresses do not match!');
+                return false;
+            }
+            
+            // Validate password match
+            const password = document.getElementById('password').value;
+            const confirmPassword = document.getElementById('confirm_password').value;
+            
+            if (password !== confirmPassword) {
+                e.preventDefault();
+                alert('Passwords do not match!');
+                return false;
+            }
+            
+            // Validate phone number
+            const phone = document.querySelector('input[name="phone"]').value;
+            if (!/^\d{10}$/.test(phone)) {
+                e.preventDefault();
+                alert('Please enter a valid 10-digit mobile number!');
+                return false;
+            }
+        });
+    </script>
 </body>
 </html>

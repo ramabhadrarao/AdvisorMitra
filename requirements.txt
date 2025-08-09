@@ -9,5 +9,5 @@ PyJWT==2.8.0
 Pillow==10.2.0
 pymongo==4.6.1
 email-validator==2.1.0.post1
-
+Flask-Mail==0.9.1
 #python 3.10

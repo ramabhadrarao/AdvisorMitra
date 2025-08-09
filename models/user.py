@@ -31,7 +31,16 @@ class User:
             self.plan_expiry_date = data.get('plan_expiry_date')
             self.agent_pdf_generated = data.get('agent_pdf_generated', 0)
             self.agent_pdf_limit = data.get('agent_pdf_limit', 0)
-            
+            # Additional agent profile fields
+            self.salutation = data.get('salutation')
+            self.gender = data.get('gender')
+            self.city = data.get('city')
+            self.organization = data.get('organization')
+            self.professional_role = data.get('professional_role')
+            self.is_lic_advisor = data.get('is_lic_advisor', False)
+            self.sells_mutual_funds = data.get('sells_mutual_funds', False)
+            self.sells_health_insurance = data.get('sells_health_insurance', False)
+            self.sells_term_insurance = data.get('sells_term_insurance', False)
             # Payment tracking fields
             self.payment_confirmed = data.get('payment_confirmed', False)
             self.payment_proof = data.get('payment_proof')  # Filename of payment proof
@@ -84,6 +93,15 @@ class User:
             'plan_expiry_date': self.plan_expiry_date,
             'agent_pdf_generated': self.agent_pdf_generated,
             'agent_pdf_limit': self.agent_pdf_limit,
+            'salutation': self.salutation,
+            'gender': self.gender,
+            'city': self.city,
+            'organization': self.organization,
+            'professional_role': self.professional_role,
+            'is_lic_advisor': self.is_lic_advisor,
+            'sells_mutual_funds': self.sells_mutual_funds,
+            'sells_health_insurance': self.sells_health_insurance,
+            'sells_term_insurance': self.sells_term_insurance,
             'payment_confirmed': self.payment_confirmed,
             'payment_proof': self.payment_proof,
             'payment_date': self.payment_date,

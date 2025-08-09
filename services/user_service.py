@@ -143,6 +143,16 @@ class UserService:
         agent_data['agent_pdf_generated'] = 0
         agent_data['agent_pdf_limit'] = 0
         
+        # Convert boolean values from form strings
+        agent_data['is_lic_advisor'] = agent_data.get('is_lic_advisor') == 'yes'
+        agent_data['sells_mutual_funds'] = agent_data.get('sells_mutual_funds') == 'yes'
+        agent_data['sells_health_insurance'] = agent_data.get('sells_health_insurance') == 'yes'
+        agent_data['sells_term_insurance'] = agent_data.get('sells_term_insurance') == 'yes'
+        
+        # Remove unnecessary fields
+        agent_data.pop('confirm_password', None)
+        agent_data.pop('confirm_email', None)
+        
         # Check if double approval is required
         partner = self.users.find_one({'_id': link['partner_id']})
         if partner:

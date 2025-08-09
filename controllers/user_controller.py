@@ -11,7 +11,8 @@ from utils.decorators import admin_required, api_admin_required, super_admin_req
 from utils.helpers import save_profile_image, delete_profile_image, log_activity
 import os
 from datetime import datetime
-
+from services.email_service import EmailService
+import urllib.parse
 from models import get_users_collection
 from models.user import User
 from bson import ObjectId
@@ -152,6 +153,11 @@ def generate_registration_link():
         # Partners generate links for themselves
         partner_id = current_user.id
     
+    # Get partner details
+    partner = user_service.get_user_by_id(partner_id)
+    if not partner:
+        return jsonify({'success': False, 'error': 'Partner not found'}), 404
+    
     token = user_service.create_agent_registration_link(
         partner_id, 
         current_user.id, 
@@ -164,8 +170,88 @@ def generate_registration_link():
     return jsonify({
         'success': True,
         'registration_url': registration_url,
-        'token': token
+        'token': token,
+        'partner_name': partner.full_name or partner.username
     })
+
+@users_bp.route('/send-registration-link', methods=['POST'])
+@login_required
+@admin_required
+def send_registration_link():
+    """Send registration link via email or WhatsApp"""
+    data = request.get_json()
+    
+    method = data.get('method')  # 'email' or 'whatsapp'
+    recipient_email = data.get('email')
+    recipient_name = data.get('name', 'Agent')
+    recipient_phone = data.get('phone')
+    registration_url = data.get('registration_url')
+    partner_name = data.get('partner_name')
+    
+    if not registration_url:
+        return jsonify({'success': False, 'error': 'Registration URL is required'}), 400
+    
+    if method == 'email':
+        if not recipient_email:
+            return jsonify({'success': False, 'error': 'Email address is required'}), 400
+        
+        email_service = EmailService()
+        success, message = email_service.send_agent_registration_link(
+            recipient_email,
+            recipient_name,
+            registration_url,
+            partner_name
+        )
+        
+        if success:
+            # Log activity
+            log_activity(
+                current_user.id,
+                'REGISTRATION_LINK_SENT',
+                f"Registration link sent via email to {recipient_email}",
+                {'method': 'email', 'recipient': recipient_email}
+            )
+            
+        return jsonify({
+            'success': success,
+            'message': message
+        })
+        
+    elif method == 'whatsapp':
+        if not recipient_phone:
+            return jsonify({'success': False, 'error': 'Phone number is required'}), 400
+        
+        email_service = EmailService()
+        message = email_service.get_whatsapp_message(
+            recipient_name,
+            registration_url,
+            partner_name
+        )
+        
+        # URL encode the message
+        encoded_message = urllib.parse.quote(message)
+        
+        # Clean phone number (remove spaces, dashes, etc)
+        clean_phone = ''.join(filter(str.isdigit, recipient_phone))
+        
+        # Generate WhatsApp URL
+        whatsapp_url = f"https://wa.me/{clean_phone}?text={encoded_message}"
+        
+        # Log activity
+        log_activity(
+            current_user.id,
+            'REGISTRATION_LINK_SENT',
+            f"Registration link prepared for WhatsApp to {recipient_phone}",
+            {'method': 'whatsapp', 'recipient': recipient_phone}
+        )
+        
+        return jsonify({
+            'success': True,
+            'whatsapp_url': whatsapp_url,
+            'message': 'WhatsApp message prepared'
+        })
+    
+    return jsonify({'success': False, 'error': 'Invalid method'}), 400
 
 @users_bp.route('/<partner_id>/update-limits', methods=['POST'])
 @login_required

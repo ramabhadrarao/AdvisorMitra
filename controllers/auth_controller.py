@@ -35,18 +35,32 @@ def register_agent(token):
         return redirect(url_for('dashboard.index'))
     
     if request.method == 'POST':
+        # Validate email match
+        if request.form.get('email') != request.form.get('confirm_email'):
+            flash('Email addresses do not match.', 'danger')
+            return render_template('auth/register_agent.html', token=token)
+        
+        # Validate password confirmation
+        if request.form.get('password') != request.form.get('confirm_password'):
+            flash('Passwords do not match.', 'danger')
+            return render_template('auth/register_agent.html', token=token)
+        
         agent_data = {
             'username': request.form.get('username'),
             'email': request.form.get('email'),
             'password': request.form.get('password'),
             'full_name': request.form.get('full_name'),
-            'phone': request.form.get('phone')
+            'phone': request.form.get('phone'),
+            'salutation': request.form.get('salutation'),
+            'gender': request.form.get('gender'),
+            'city': request.form.get('city'),
+            'organization': request.form.get('organization'),
+            'professional_role': request.form.get('professional_role'),
+            'is_lic_advisor': request.form.get('is_lic_advisor'),
+            'sells_mutual_funds': request.form.get('sells_mutual_funds'),
+            'sells_health_insurance': request.form.get('sells_health_insurance'),
+            'sells_term_insurance': request.form.get('sells_term_insurance')
         }
-        
-        # Validate password confirmation
-        if agent_data['password'] != request.form.get('confirm_password'):
-            flash('Passwords do not match.', 'danger')
-            return render_template('auth/register_agent.html', token=token)
         
         user_service = UserService()
         agent_id, error = user_service.register_agent_via_link(agent_data, token)
