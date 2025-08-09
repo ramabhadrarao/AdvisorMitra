@@ -235,3 +235,153 @@ code {
     line-height: 1;
     color: rgba(0, 0, 0, 0.1);
 }
+
+/* static/css/custom.css */
+/* Custom styles for enhanced UI */
+
+/* Table row hover effect */
+.table-vcenter tbody tr:hover {
+    background-color: rgba(0, 0, 0, 0.02);
+}
+
+/* Agent name link hover effect */
+.table-vcenter tbody tr td a.text-reset:hover {
+    color: #206bc4 !important;
+}
+
+/* Checkbox styling */
+.agent-checkbox {
+    cursor: pointer;
+}
+
+/* Badge improvements */
+.badge-sm {
+    font-size: 0.75rem;
+    padding: 0.125rem 0.375rem;
+}
+
+/* Avatar badge positioning */
+.avatar .badge {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: 0.75rem;
+    height: 0.75rem;
+    border: 2px solid #fff;
+    border-radius: 50%;
+}
+
+/* Dropdown icon styling */
+.dropdown-item-icon {
+    width: 1.25rem;
+    height: 1.25rem;
+    margin-right: 0.5rem;
+    opacity: 0.7;
+}
+
+/* Progress bar enhancements */
+.progress-sm {
+    height: 0.25rem;
+}
+
+/* Icon inside text */
+.icon-sm {
+    width: 1rem;
+    height: 1rem;
+    vertical-align: text-bottom;
+}
+
+/* Agent details page styles */
+.datagrid-title {
+    font-weight: 600;
+    color: #626976;
+}
+
+.datagrid-content {
+    color: #1e293b;
+}
+
+/* Responsive improvements */
+@media (max-width: 768px) {
+    .table-responsive table {
+        font-size: 0.875rem;
+    }
+    
+    .btn-sm {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.75rem;
+    }
+}
+
+/* Status indicator animation */
+.avatar .badge {
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(32, 107, 196, 0.7);
+    }
+    
+    70% {
+        box-shadow: 0 0 0 10px rgba(32, 107, 196, 0);
+    }
+    
+    100% {
+        box-shadow: 0 0 0 0 rgba(32, 107, 196, 0);
+    }
+}
+
+/* Dropdown menu improvements */
+.dropdown-menu {
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+}
+
+.dropdown-item:hover {
+    background-color: #f6f8fb;
+}
+
+.dropdown-item:hover .dropdown-item-icon {
+    opacity: 1;
+}
+
+/* Empty state styling */
+.empty {
+    padding: 3rem 0;
+}
+
+.empty-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+}
+
+.empty-subtitle {
+    font-size: 0.875rem;
+}
+
+/* Light background badges */
+.bg-green-lt {
+    background-color: #d1fae5 !important;
+    color: #065f46 !important;
+}
+
+.bg-yellow-lt {
+    background-color: #fef3c7 !important;
+    color: #92400e !important;
+}
+
+.bg-red-lt {
+    background-color: #fee2e2 !important;
+    color: #991b1b !important;
+}
+
+.bg-azure-lt {
+    background-color: #dbeafe !important;
+    color: #1e40af !important;
+}
+
+.bg-purple-lt {
+    background-color: #e9d5ff !important;
+    color: #6b21a8 !important;
+}

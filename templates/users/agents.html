@@ -68,6 +68,9 @@
                 <table class="table card-table table-vcenter text-nowrap">
                     <thead>
                         <tr>
+                            <th class="w-1">
+                                <input type="checkbox" class="form-check-input m-0 align-middle" id="selectAll" onclick="toggleSelectAll(this)">
+                            </th>
                             <th>Agent</th>
                             <th>Contact</th>
                             {% if current_user.is_super_admin() %}
@@ -75,8 +78,7 @@
                             {% endif %}
                             <th>Plan</th>
                             <th>PDF Usage</th>
-                            <th>Payment Status</th>
-                            
+                            <th>Payment</th>
                             <th>Registered</th>
                             <th class="w-1"></th>
                         </tr>
@@ -84,33 +86,69 @@
                     <tbody>
                         {% for agent in agents %}
                         <tr>
-                           <td>
+                            <td>
+                                <input type="checkbox" class="form-check-input m-0 align-middle agent-checkbox" value="{{ agent.id }}">
+                            </td>
+                            <td>
                                 <div class="d-flex py-1 align-items-center">
-                                    <span class="avatar me-2" style="background-image: url({{ url_for('static', filename='uploads/profiles/' + (agent.profile_image or 'default.png')) }})"></span>
+                                    <span class="avatar avatar-sm me-2" style="background-image: url({{ url_for('static', filename='uploads/profiles/' + (agent.profile_image or 'default.png')) }})">
+                                        {% if agent.approval_status == 'APPROVED' and agent.is_active %}
+                                            <span class="badge bg-success"></span>
+                                        {% elif agent.approval_status == 'PENDING' %}
+                                            <span class="badge bg-warning"></span>
+                                        {% elif agent.approval_status == 'PARTNER_APPROVED' %}
+                                            <span class="badge bg-info"></span>
+                                        {% elif agent.approval_status == 'REJECTED' %}
+                                            <span class="badge bg-danger"></span>
+                                        {% elif not agent.is_active %}
+                                            <span class="badge bg-secondary"></span>
+                                        {% endif %}
+                                    </span>
                                     <div class="flex-fill">
                                         <div class="font-weight-medium">
-                                            {{ agent.full_name or agent.username }}
-                                            {% if agent.approval_status == 'APPROVED' %}
-                                                <span class="badge bg-success ms-1">Approved</span>
+                                            <a href="{{ url_for('users.agent_details', agent_id=agent.id) }}" class="text-reset text-decoration-none">
+                                                {{ agent.full_name or agent.username }}
+                                            </a>
+                                            {% if agent.approval_status == 'APPROVED' and agent.is_active %}
+                                                <span class="badge badge-sm bg-green-lt">Active</span>
                                             {% elif agent.approval_status == 'PENDING' %}
-                                                <span class="badge bg-warning ms-1">Pending</span>
+                                                <span class="badge badge-sm bg-yellow-lt">Pending</span>
                                             {% elif agent.approval_status == 'PARTNER_APPROVED' %}
-                                                <span class="badge bg-info ms-1">Partner Approved</span>
+                                                <span class="badge badge-sm bg-azure-lt">Partner Approved</span>
                                             {% elif agent.approval_status == 'REJECTED' %}
-                                                <span class="badge bg-danger ms-1" title="{{ agent.rejection_reason }}">Rejected</span>
+                                                <span class="badge badge-sm bg-red-lt" title="{{ agent.rejection_reason }}">Rejected</span>
+                                            {% elif not agent.is_active %}
+                                                <span class="badge badge-sm bg-secondary">Inactive</span>
                                             {% endif %}
                                             {% if agent.requires_double_approval %}
-                                                <span class="badge bg-secondary ms-1" title="Requires double approval">2x</span>
+                                                <span class="badge badge-sm bg-purple-lt" title="Requires double approval">2x</span>
                                             {% endif %}
                                         </div>
-                                        <div class="text-muted">@{{ agent.username }}</div>
+                                        <div class="text-muted">
+                                            <a href="{{ url_for('users.agent_details', agent_id=agent.id) }}" class="text-reset text-decoration-none">
+                                                @{{ agent.username }}
+                                            </a>
+                                        </div>
                                     </div>
                                 </div>
                             </td>
-
                             <td>
-                                <div>{{ agent.email }}</div>
-                                <div class="small text-muted">{{ agent.phone or '-' }}</div>
+                                <div class="text-nowrap">
+                                    <a href="mailto:{{ agent.email }}" class="text-reset text-decoration-none">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm text-muted" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><rect x="3" y="5" width="18" height="14" rx="2" /><polyline points="3 7 12 13 21 7" /></svg>
+                                        {{ agent.email }}
+                                    </a>
+                                </div>
+                                <div class="small text-muted">
+                                    {% if agent.phone %}
+                                        <a href="tel:{{ agent.phone }}" class="text-reset text-decoration-none">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 4h4l2 5l-2.5 1.5a11 11 0 0 0 5 5l1.5 -2.5l5 2v4a2 2 0 0 1 -2 2a16 16 0 0 1 -15 -15a2 2 0 0 1 2 -2" /></svg>
+                                            {{ agent.phone }}
+                                        </a>
+                                    {% else %}
+                                        <span class="text-muted">No phone</span>
+                                    {% endif %}
+                                </div>
                             </td>
                             {% if current_user.is_super_admin() %}
                             <td>
@@ -124,14 +162,18 @@
                             {% endif %}
                             <td>
                                 {% if agent.plan_id and agent.plan is defined and agent.plan %}
-                                    <div>{{ agent.plan.name }}</div>
+                                    <div class="text-nowrap">
+                                        <strong>{{ agent.plan.name }}</strong>
+                                    </div>
                                     <div class="small text-muted">
                                         {% if agent.plan_expiry_date %}
                                             {% set now = datetime.utcnow() %}
                                             {% if agent.plan_expiry_date > now %}
-                                                <span class="text-success">Active until {{ agent.plan_expiry_date.strftime('%Y-%m-%d') }}</span>
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm text-success" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /><path d="M12 7v5l3 3" /></svg>
+                                                Expires {{ agent.plan_expiry_date.strftime('%Y-%m-%d') }}
                                             {% else %}
-                                                <span class="text-danger">Expired on {{ agent.plan_expiry_date.strftime('%Y-%m-%d') }}</span>
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm text-danger" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" /><path d="M10 10l4 4m0 -4l-4 4" /></svg>
+                                                Expired {{ agent.plan_expiry_date.strftime('%Y-%m-%d') }}
                                             {% endif %}
                                         {% else %}
                                             No expiry set
@@ -143,9 +185,14 @@
                             </td>
                             <td>
                                 {% if agent.agent_pdf_limit > 0 %}
-                                    <div>{{ agent.agent_pdf_generated }}/{{ agent.agent_pdf_limit }}</div>
-                                    <div class="progress progress-sm">
-                                        <div class="progress-bar bg-primary" style="width: {{ (agent.agent_pdf_generated / agent.agent_pdf_limit * 100) }}%" role="progressbar"></div>
+                                    <div class="text-nowrap">
+                                        <strong>{{ agent.agent_pdf_generated }}</strong> / {{ agent.agent_pdf_limit }}
+                                    </div>
+                                    <div class="progress progress-sm mt-1">
+                                        <div class="progress-bar {{ 'bg-danger' if (agent.agent_pdf_generated / agent.agent_pdf_limit * 100) > 90 else 'bg-primary' }}" 
+                                             style="width: {{ (agent.agent_pdf_generated / agent.agent_pdf_limit * 100) }}%" 
+                                             role="progressbar">
+                                        </div>
                                     </div>
                                 {% else %}
                                     <span class="text-muted">-</span>
@@ -155,50 +202,50 @@
                                 {% if agent.plan_id %}
                                     {% if agent.payment_confirmed %}
                                         <div>
-                                            <span class="badge bg-success">
+                                            <span class="badge badge-sm bg-green-lt">
                                                 <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 12l5 5l10 -10" /></svg>
                                                 Paid
                                             </span>
                                             {% if agent.payment_amount %}
-                                                <div class="small text-muted">₹{{ agent.payment_amount }}</div>
+                                                <div class="small text-muted mt-1">₹{{ agent.payment_amount }}</div>
                                             {% endif %}
                                         </div>
-                                        {% if agent.payment_method %}
-                                            <div class="small text-muted">{{ agent.payment_method|replace('_', ' ')|title }}</div>
-                                        {% endif %}
                                         {% if agent.payment_proof %}
-                                            <a href="#" onclick="viewPaymentProof('{{ agent.id }}', '{{ agent.full_name or agent.username }}')" class="small">
-                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M14 3v4a1 1 0 0 0 1 1h4" /><path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" /><path d="M9 15l2 2l4 -4" /></svg>
-                                                View Receipt
-                                            </a>
-                                            <a href="{{ url_for('users.view_payment_proof', filename=agent.payment_proof) }}" class="small ms-2" target="_blank">
-                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2" /><path d="M7 11l5 5l5 -5" /><path d="M12 4l0 12" /></svg>
-                                                Direct Link
+                                            <a href="#" onclick="viewPaymentProof('{{ agent.id }}', '{{ agent.full_name or agent.username }}')" class="small text-decoration-none">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M14 3v4a1 1 0 0 0 1 1h4" /><path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" /></svg>
+                                                Receipt
                                             </a>
                                         {% endif %}
                                     {% else %}
-                                        <span class="badge bg-warning">Pending</span>
+                                        <span class="badge badge-sm bg-yellow-lt">Pending</span>
                                     {% endif %}
                                 {% else %}
                                     <span class="text-muted">-</span>
                                 {% endif %}
                             </td>
-                           
-                            <td class="text-muted">
+                            <td class="text-muted text-nowrap">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><rect x="4" y="5" width="16" height="16" rx="2" /><line x1="16" y1="3" x2="16" y2="7" /><line x1="8" y1="3" x2="8" y2="7" /><line x1="4" y1="11" x2="20" y2="11" /><line x1="11" y1="15" x2="12" y2="15" /><line x1="12" y1="15" x2="12" y2="18" /></svg>
                                 {{ agent.created_at.strftime('%Y-%m-%d') if agent.created_at else '-' }}
                             </td>
                             <td>
                                 <div class="btn-list flex-nowrap">
                                     <div class="dropdown">
-                                        <button class="btn btn-sm dropdown-toggle align-text-top" data-bs-toggle="dropdown">
+                                        <button class="btn btn-outline-secondary btn-sm dropdown-toggle" data-bs-toggle="dropdown">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M10.325 4.317c.426 -1.756 2.924 -1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543 -.94 3.31 .826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756 .426 1.756 2.924 0 3.35a1.724 1.724 0 0 0 -1.066 2.573c.94 1.543 -.826 3.31 -2.37 2.37a1.724 1.724 0 0 0 -2.572 1.065c-.426 1.756 -2.924 1.756 -3.35 0a1.724 1.724 0 0 0 -2.573 -1.066c-1.543 .94 -3.31 -.826 -2.37 -2.37a1.724 1.724 0 0 0 -1.065 -2.572c-1.756 -.426 -1.756 -2.924 0 -3.35a1.724 1.724 0 0 0 1.066 -2.573c-.94 -1.543 .826 -3.31 2.37 -2.37c1 .608 2.296 .07 2.572 -1.065z" /><path d="M9 12a3 3 0 1 0 6 0a3 3 0 0 0 -6 0" /></svg>
                                             Actions
                                         </button>
                                         <div class="dropdown-menu dropdown-menu-end">
+                                            <a class="dropdown-item" href="{{ url_for('users.agent_details', agent_id=agent.id) }}">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" /><path d="M21 12c-2.4 4 -5.4 6 -9 6c-3.6 0 -6.6 -2 -9 -6c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6" /></svg>
+                                                View Details
+                                            </a>
+                                            
                                             {% if agent.approval_status in ['PENDING', 'PARTNER_APPROVED'] %}
+                                                <div class="dropdown-divider"></div>
                                                 {% if current_user.is_partner() and not agent.partner_approved and agent.approval_status == 'PENDING' %}
                                                 <form method="post" action="{{ url_for('users.approve_user', user_id=agent.id) }}">
                                                     <button type="submit" class="dropdown-item text-success">
-                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M7 12l5 5l7 -7" /></svg>
+                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon text-success" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M7 12l5 5l7 -7" /></svg>
                                                         Approve Agent
                                                     </button>
                                                 </form>
@@ -206,33 +253,32 @@
                                                 {% if current_user.is_super_admin() and (agent.approval_status == 'PARTNER_APPROVED' or not agent.requires_double_approval) %}
                                                 <form method="post" action="{{ url_for('users.approve_user', user_id=agent.id) }}">
                                                     <button type="submit" class="dropdown-item text-success">
-                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M7 12l5 5l7 -7" /></svg>
+                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon text-success" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M7 12l5 5l7 -7" /></svg>
                                                         Final Approve
                                                     </button>
                                                 </form>
                                                 {% endif %}
                                                 <a class="dropdown-item text-danger" href="#" onclick="showRejectModal('{{ agent.id }}', '{{ agent.full_name or agent.username }}')">
-                                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+                                                    <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon text-danger" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
                                                     Reject
                                                 </a>
-                                                <div class="dropdown-divider"></div>
                                             {% endif %}
                                             
                                             <a class="dropdown-item" href="{{ url_for('users.edit_user', user_id=agent.id) }}">
-                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 7h-3a2 2 0 0 0 -2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2 -2v-3" /><path d="M9 15h3l8.5 -8.5a1.5 1.5 0 0 0 -3 -3l-8.5 8.5v3" /><line x1="16" y1="5" x2="19" y2="8" /></svg>
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 7h-3a2 2 0 0 0 -2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2 -2v-3" /><path d="M9 15h3l8.5 -8.5a1.5 1.5 0 0 0 -3 -3l-8.5 8.5v3" /><line x1="16" y1="5" x2="19" y2="8" /></svg>
                                                 Edit Details
                                             </a>
                                             
                                             {% if agent.approval_status == 'APPROVED' and not agent.plan_id %}
                                             <a class="dropdown-item" href="#" onclick="showAssignPlanModal('{{ agent.id }}', '{{ agent.full_name or agent.username }}')">
-                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 5h-2a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-12a2 2 0 0 0 -2 -2h-2" /><path d="M9 3m0 2a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v0a2 2 0 0 1 -2 2h-2a2 2 0 0 1 -2 -2z" /></svg>
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 5h-2a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-12a2 2 0 0 0 -2 -2h-2" /><path d="M9 3m0 2a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v0a2 2 0 0 1 -2 2h-2a2 2 0 0 1 -2 -2z" /></svg>
                                                 Assign Plan
                                             </a>
                                             {% endif %}
                                             
                                             {% if agent.plan_id and agent.payment_confirmed %}
                                             <a class="dropdown-item" href="#" onclick="viewPaymentDetails('{{ agent.id }}', '{{ agent.full_name or agent.username }}')">
-                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 5h-2a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-12a2 2 0 0 0 -2 -2h-2" /><path d="M9 3m0 2a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v0a2 2 0 0 1 -2 2h-2a2 2 0 0 1 -2 -2z" /><path d="M9 12l.01 0" /><path d="M13 12l2 2l4 -4" /></svg>
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 5h-2a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-12a2 2 0 0 0 -2 -2h-2" /><path d="M9 3m0 2a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v0a2 2 0 0 1 -2 2h-2a2 2 0 0 1 -2 -2z" /><path d="M9 12l.01 0" /><path d="M13 12l2 2l4 -4" /></svg>
                                                 View Payment Details
                                             </a>
                                             {% endif %}
@@ -242,10 +288,10 @@
                                             <form method="post" action="{{ url_for('users.toggle_status', user_id=agent.id) }}">
                                                 <button type="submit" class="dropdown-item text-{{ 'danger' if agent.is_active else 'success' }}">
                                                     {% if agent.is_active %}
-                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M7 7h10v10" /></svg>
+                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon text-danger" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M7 7h10v10" /></svg>
                                                         Deactivate
                                                     {% else %}
-                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M7 12l5 5l7 -7" /></svg>
+                                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon dropdown-item-icon text-success" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M7 12l5 5l7 -7" /></svg>
                                                         Activate
                                                     {% endif %}
                                                 </button>
@@ -258,7 +304,7 @@
                         </tr>
                         {% else %}
                         <tr>
-                            <td colspan="{{ '9' if current_user.is_super_admin() else '8' }}" class="text-center text-muted py-4">
+                            <td colspan="{{ '10' if current_user.is_super_admin() else '9' }}" class="text-center text-muted py-4">
                                 No agents found
                             </td>
                         </tr>
@@ -305,7 +351,6 @@
     </div>
 </div>
 
-<!-- Generate Registration Link Modal -->
 <!-- Generate Registration Link Modal -->
 <div class="modal modal-blur fade" id="generateLinkModal" tabindex="-1" role="dialog" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered" role="document">
@@ -635,6 +680,28 @@ let currentDiscount = 0;
 let agentsPaymentData = {};
 let currentRegistrationUrl = '';
 let currentPartnerName = '';
+
+// Checkbox selection functionality
+function toggleSelectAll(checkbox) {
+    const checkboxes = document.querySelectorAll('.agent-checkbox');
+    checkboxes.forEach(cb => cb.checked = checkbox.checked);
+    updateBulkActions();
+}
+
+function updateBulkActions() {
+    const checkedBoxes = document.querySelectorAll('.agent-checkbox:checked');
+    // You can add bulk action buttons here if needed
+    console.log(`${checkedBoxes.length} agents selected`);
+}
+
+// Add event listeners to individual checkboxes
+document.addEventListener('DOMContentLoaded', function() {
+    const checkboxes = document.querySelectorAll('.agent-checkbox');
+    checkboxes.forEach(cb => {
+        cb.addEventListener('change', updateBulkActions);
+    });
+});
+
 // Simple modal handling functions
 function showModal(modalId) {
     const modal = document.getElementById(modalId);
@@ -1148,7 +1215,6 @@ function showPaymentDetailsModal(agentId, agentName, paymentData) {
     }
 }
 
-// View payment proof
 // View payment proof
 function viewPaymentProof(agentId, agentName) {
     console.log('Viewing payment proof for agent:', agentId, agentName);

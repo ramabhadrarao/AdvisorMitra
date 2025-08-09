@@ -1,0 +1,621 @@
+<!-- templates/users/agent_details.html -->
+<!-- Agent details view page -->
+{% extends "base.html" %}
+
+{% block title %}Agent Details - {{ agent.full_name or agent.username }} - Financial Planning System{% endblock %}
+
+{% block content %}
+<div class="page-header d-print-none">
+    <div class="container-xl">
+        <div class="row g-2 align-items-center">
+            <div class="col">
+                <div class="page-pretitle">
+                    Agent Details
+                </div>
+                <h2 class="page-title">
+                    {{ agent.full_name or agent.username }}
+                </h2>
+            </div>
+            <div class="col-auto ms-auto d-print-none">
+                <div class="btn-list">
+                    <a href="{{ url_for('users.agents') }}" class="btn btn-secondary">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M15 6l-6 6l6 6" /></svg>
+                        Back to Agents
+                    </a>
+                    {% if current_user.is_super_admin() or (current_user.is_partner() and str(agent.partner_id) == current_user.id) %}
+                    <a href="{{ url_for('users.edit_user', user_id=agent.id) }}" class="btn btn-primary">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 7h-3a2 2 0 0 0 -2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2 -2v-3" /><path d="M9 15h3l8.5 -8.5a1.5 1.5 0 0 0 -3 -3l-8.5 8.5v3" /><line x1="16" y1="5" x2="19" y2="8" /></svg>
+                        Edit Agent
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="page-body">
+    <div class="container-xl">
+        <div class="row row-cards">
+            <!-- Profile Card -->
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="text-center mb-4">
+                            <span class="avatar avatar-xl" style="background-image: url({{ url_for('static', filename='uploads/profiles/' + (agent.profile_image or 'default.png')) }})"></span>
+                        </div>
+                        <h3 class="card-title text-center mb-1">{{ agent.full_name or agent.username }}</h3>
+                        <div class="text-muted text-center mb-3">@{{ agent.username }}</div>
+                        
+                        <div class="mb-3">
+                            <div class="datagrid">
+                                <div class="datagrid-item">
+                                    <div class="datagrid-title">Status</div>
+                                    <div class="datagrid-content">
+                                        {% if agent.approval_status == 'APPROVED' %}
+                                            <span class="badge bg-success">Approved</span>
+                                        {% elif agent.approval_status == 'PENDING' %}
+                                            <span class="badge bg-warning">Pending</span>
+                                        {% elif agent.approval_status == 'PARTNER_APPROVED' %}
+                                            <span class="badge bg-info">Partner Approved</span>
+                                        {% elif agent.approval_status == 'REJECTED' %}
+                                            <span class="badge bg-danger">Rejected</span>
+                                        {% endif %}
+                                        {% if not agent.is_active %}
+                                            <span class="badge bg-secondary">Inactive</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="datagrid-item">
+                                    <div class="datagrid-title">Partner</div>
+                                    <div class="datagrid-content">
+                                        {% if partner %}
+                                            {{ partner.full_name or partner.username }}
+                                        {% else %}
+                                            <span class="text-muted">No partner</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="datagrid-item">
+                                    <div class="datagrid-title">Registered</div>
+                                    <div class="datagrid-content">
+                                        {{ agent.created_at.strftime('%Y-%m-%d') if agent.created_at else '-' }}
+                                    </div>
+                                </div>
+                                <div class="datagrid-item">
+                                    <div class="datagrid-title">Last Login</div>
+                                    <div class="datagrid-content">
+                                        {{ agent.last_login.strftime('%Y-%m-%d %H:%M') if agent.last_login else 'Never' }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Details Cards -->
+            <div class="col-md-8">
+                <!-- Contact Information -->
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <h3 class="card-title">Contact Information</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="datagrid">
+                            <div class="datagrid-item">
+                                <div class="datagrid-title">Email</div>
+                                <div class="datagrid-content">
+                                    <a href="mailto:{{ agent.email }}">{{ agent.email }}</a>
+                                </div>
+                            </div>
+                            <div class="datagrid-item">
+                                <div class="datagrid-title">Phone</div>
+                                <div class="datagrid-content">
+                                    {% if agent.phone %}
+                                        <a href="tel:{{ agent.phone }}">{{ agent.phone }}</a>
+                                    {% else %}
+                                        <span class="text-muted">Not provided</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="datagrid-item">
+                                <div class="datagrid-title">Gender</div>
+                                <div class="datagrid-content">{{ agent.gender or '-' }}</div>
+                            </div>
+                            <div class="datagrid-item">
+                                <div class="datagrid-title">City</div>
+                                <div class="datagrid-content">{{ agent.city or '-' }}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Professional Information -->
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <h3 class="card-title">Professional Information</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="datagrid">
+                            <div class="datagrid-item">
+                                <div class="datagrid-title">Organization</div>
+                                <div class="datagrid-content">{{ agent.organization or '-' }}</div>
+                            </div>
+                            <div class="datagrid-item">
+                                <div class="datagrid-title">Professional Role</div>
+                                <div class="datagrid-content">{{ agent.professional_role or '-' }}</div>
+                            </div>
+                            <div class="datagrid-item">
+                                <div class="datagrid-title">LIC Advisor</div>
+                                <div class="datagrid-content">
+                                    {% if agent.is_lic_advisor %}
+                                        <span class="badge bg-success">Yes</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">No</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="datagrid-item">
+                                <div class="datagrid-title">Sells Mutual Funds</div>
+                                <div class="datagrid-content">
+                                    {% if agent.sells_mutual_funds %}
+                                        <span class="badge bg-success">Yes</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">No</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="datagrid-item">
+                                <div class="datagrid-title">Sells Health Insurance</div>
+                                <div class="datagrid-content">
+                                    {% if agent.sells_health_insurance %}
+                                        <span class="badge bg-success">Yes</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">No</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="datagrid-item">
+                                <div class="datagrid-title">Sells Term Insurance</div>
+                                <div class="datagrid-content">
+                                    {% if agent.sells_term_insurance %}
+                                        <span class="badge bg-success">Yes</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">No</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Plan Information -->
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <h3 class="card-title">Plan Information</h3>
+                    </div>
+                    <div class="card-body">
+                        {% if agent.plan_id and plan %}
+                        <div class="datagrid">
+                            <div class="datagrid-item">
+                                <div class="datagrid-title">Current Plan</div>
+                                <div class="datagrid-content">
+                                    <strong>{{ plan.name }}</strong>
+                                    <div class="small text-muted">{{ plan.description or '' }}</div>
+                                </div>
+                            </div>
+                            <div class="datagrid-item">
+                                <div class="datagrid-title">Plan Period</div>
+                                <div class="datagrid-content">{{ plan.get_period_display() }}</div>
+                            </div>
+                            <div class="datagrid-item">
+                                <div class="datagrid-title">Start Date</div>
+                                <div class="datagrid-content">
+                                    {{ agent.plan_start_date.strftime('%Y-%m-%d') if agent.plan_start_date else '-' }}
+                                </div>
+                            </div>
+                            <div class="datagrid-item">
+                                <div class="datagrid-title">Expiry Date</div>
+                                <div class="datagrid-content">
+                                    {% if agent.plan_expiry_date %}
+                                        {% set now = datetime.utcnow() %}
+                                        {% if agent.plan_expiry_date > now %}
+                                            <span class="text-success">{{ agent.plan_expiry_date.strftime('%Y-%m-%d') }}</span>
+                                            <div class="small text-muted">{{ (agent.plan_expiry_date - now).days }} days remaining</div>
+                                        {% else %}
+                                            <span class="text-danger">{{ agent.plan_expiry_date.strftime('%Y-%m-%d') }} (Expired)</span>
+                                        {% endif %}
+                                    {% else %}
+                                        -
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="datagrid-item">
+                                <div class="datagrid-title">PDF Usage</div>
+                                <div class="datagrid-content">
+                                    <div>{{ agent.agent_pdf_generated }} / {{ agent.agent_pdf_limit }}</div>
+                                    <div class="progress progress-sm mt-1">
+                                        <div class="progress-bar bg-primary" style="width: {{ (agent.agent_pdf_generated / agent.agent_pdf_limit * 100) if agent.agent_pdf_limit > 0 else 0 }}%" role="progressbar"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="datagrid-item">
+                                <div class="datagrid-title">PDFs Remaining</div>
+                                <div class="datagrid-content">
+                                    {{ agent.agent_pdf_limit - agent.agent_pdf_generated }}
+                                </div>
+                            </div>
+                        </div>
+                        {% else %}
+                        <div class="empty">
+                            <p class="empty-title">No Plan Assigned</p>
+                            <p class="empty-subtitle text-muted">
+                                Agent doesn't have any active plan.
+                            </p>
+                            {% if agent.approval_status == 'APPROVED' and agent.is_active %}
+                                {% if current_user.is_super_admin() or (current_user.is_partner() and str(agent.partner_id) == current_user.id) %}
+                                <div class="empty-action">
+                                    <a href="#" class="btn btn-primary" onclick="showAssignPlanModal('{{ agent.id }}', '{{ agent.full_name or agent.username }}')">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 5h-2a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-12a2 2 0 0 0 -2 -2h-2" /><path d="M9 3m0 2a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v0a2 2 0 0 1 -2 2h-2a2 2 0 0 1 -2 -2z" /></svg>
+                                        Assign Plan
+                                    </a>
+                                </div>
+                                {% endif %}
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Payment Information -->
+                {% if agent.plan_id and agent.payment_confirmed %}
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Payment Information</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="datagrid">
+                            <div class="datagrid-item">
+                                <div class="datagrid-title">Payment Status</div>
+                                <div class="datagrid-content">
+                                    <span class="badge bg-success">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 12l5 5l10 -10" /></svg>
+                                        Confirmed
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="datagrid-item">
+                                <div class="datagrid-title">Amount Paid</div>
+                                <div class="datagrid-content">₹{{ agent.payment_amount or agent.plan_price_paid or '0' }}</div>
+                            </div>
+                            <div class="datagrid-item">
+                                <div class="datagrid-title">Payment Method</div>
+                                <div class="datagrid-content">{{ agent.payment_method|replace('_', ' ')|title if agent.payment_method else '-' }}</div>
+                            </div>
+                            <div class="datagrid-item">
+                                <div class="datagrid-title">Reference/Transaction ID</div>
+                                <div class="datagrid-content">{{ agent.payment_reference or '-' }}</div>
+                            </div>
+                            <div class="datagrid-item">
+                                <div class="datagrid-title">Payment Date</div>
+                                <div class="datagrid-content">{{ agent.payment_date.strftime('%Y-%m-%d %H:%M') if agent.payment_date else '-' }}</div>
+                            </div>
+                            {% if agent.plan_coupon_used %}
+                            <div class="datagrid-item">
+                                <div class="datagrid-title">Coupon Used</div>
+                                <div class="datagrid-content">
+                                    <code>{{ agent.plan_coupon_used }}</code>
+                                </div>
+                            </div>
+                            {% endif %}
+                            {% if agent.payment_proof %}
+                            <div class="datagrid-item">
+                                <div class="datagrid-title">Payment Proof</div>
+                                <div class="datagrid-content">
+                                    <a href="{{ url_for('users.view_payment_proof', filename=agent.payment_proof) }}" class="btn btn-sm btn-primary" target="_blank">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" /><path d="M21 12c-2.4 4 -5.4 6 -9 6c-3.6 0 -6.6 -2 -9 -6c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6" /></svg>
+                                        View Receipt
+                                    </a>
+                                    <a href="{{ url_for('users.view_payment_proof', filename=agent.payment_proof) }}?download=true" class="btn btn-sm btn-secondary">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2" /><path d="M7 11l5 5l5 -5" /><path d="M12 4l0 12" /></svg>
+                                        Download
+                                    </a>
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Assign Plan Modal -->
+{% if agent.approval_status == 'APPROVED' and agent.is_active and not agent.plan_id %}
+    {% if current_user.is_super_admin() or (current_user.is_partner() and str(agent.partner_id) == current_user.id) %}
+        <div class="modal modal-blur fade" id="assignPlanModal" tabindex="-1" role="dialog" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Assign Plan to Agent</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <form method="post" id="assignPlanForm" action="{{ url_for('users.assign_plan', user_id=agent.id) }}" enctype="multipart/form-data">
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <label class="form-label">Agent</label>
+                                <input type="text" class="form-control" value="{{ agent.full_name or agent.username }}" readonly>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Select Plan</label>
+                                <select name="plan_id" class="form-select" required onchange="updatePlanPricing(this.value)">
+                                    <option value="">Choose a plan...</option>
+                                </select>
+                            </div>
+                            
+                            <!-- Pricing Details -->
+                            <div id="pricingDetails" style="display: none;">
+                                <hr>
+                                <div class="row">
+                                    <div class="col">
+                                        <strong>Plan Price:</strong>
+                                    </div>
+                                    <div class="col-auto">
+                                        ₹<span id="planPrice">0</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="mt-3">
+                                    <label class="form-label">Apply Coupon (Optional)</label>
+                                    <div class="input-group">
+                                        <input type="text" id="tempCouponCode" class="form-control" placeholder="Enter coupon code">
+                                        <button type="button" class="btn btn-primary" onclick="applyCoupon()">Apply</button>
+                                    </div>
+                                    <input type="hidden" name="coupon_code" id="appliedCouponCode">
+                                    <div id="couponMessage" class="form-hint mt-1"></div>
+                                </div>
+                                
+                                <div id="discountDetails" style="display: none;" class="mt-2">
+                                    <div class="row text-success">
+                                        <div class="col">
+                                            <strong>Discount:</strong>
+                                        </div>
+                                        <div class="col-auto">
+                                            -₹<span id="discountAmount">0</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <hr>
+                                <div class="row">
+                                    <div class="col">
+                                        <strong>Total Amount:</strong>
+                                    </div>
+                                    <div class="col-auto">
+                                        <strong>₹<span id="totalAmount">0</span></strong>
+                                    </div>
+                                </div>
+                                
+                                <!-- Payment Confirmation Section -->
+                                <hr>
+                                <h4>Payment Confirmation</h4>
+                                
+                                <div class="mb-3">
+                                    <label class="form-check">
+                                        <input type="checkbox" name="payment_confirmed" class="form-check-input" onchange="togglePaymentDetails(this.checked)">
+                                        <span class="form-check-label">Payment has been received</span>
+                                    </label>
+                                </div>
+                                
+                                <div id="paymentDetails" style="display: none;">
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">Payment Amount</label>
+                                            <input type="number" name="payment_amount" id="paymentAmount" class="form-control" step="0.01" min="0">
+                                            <small class="form-hint">Leave empty to use final amount</small>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label">Payment Method</label>
+                                            <select name="payment_method" class="form-select">
+                                                <option value="">Select method...</option>
+                                                <option value="CASH">Cash</option>
+                                                <option value="BANK_TRANSFER">Bank Transfer</option>
+                                                <option value="UPI">UPI</option>
+                                                <option value="CARD">Credit/Debit Card</option>
+                                                <option value="CHEQUE">Cheque</option>
+                                                <option value="OTHER">Other</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label class="form-label">Payment Reference/Transaction ID</label>
+                                        <input type="text" name="payment_reference" class="form-control" placeholder="Transaction ID or reference number">
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label class="form-label">Payment Proof (Optional)</label>
+                                        <input type="file" name="payment_proof" class="form-control" accept="image/*,.pdf">
+                                        <small class="form-hint">Upload receipt, screenshot or PDF (Max 16MB)</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn me-auto" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-primary">Assign Plan</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Include necessary JavaScript for plan assignment if needed
+{% if agent.approval_status == 'APPROVED' and agent.is_active and not agent.plan_id %}
+    {% if current_user.is_super_admin() or (current_user.is_partner() and str(agent.partner_id) == current_user.id) %}
+        // Variables for plan assignment
+        let plansData = {};
+        let currentPlanPrice = 0;
+        let currentDiscount = 0;
+
+        // Show assign plan modal
+        async function showAssignPlanModal(agentId, agentName) {
+            // Load available plans
+            await loadPlans();
+            
+            // Show modal
+            const modal = new bootstrap.Modal(document.getElementById('assignPlanModal'));
+            modal.show();
+        }
+
+        // Load plans for modal
+        async function loadPlans() {
+            try {
+                const response = await fetch('/plans/api/active');
+                const data = await response.json();
+                
+                if (data.success) {
+                    const select = document.querySelector('#assignPlanModal select[name="plan_id"]');
+                    select.innerHTML = '<option value="">Choose a plan...</option>';
+                    
+                    data.plans.forEach(plan => {
+                        plansData[plan.id] = plan;
+                        const option = document.createElement('option');
+                        option.value = plan.id;
+                        option.textContent = `${plan.name} - ${plan.period_display} - ${plan.pdf_limit} PDFs - ₹${plan.price}`;
+                        select.appendChild(option);
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading plans:', error);
+            }
+        }
+
+        // Toggle payment details visibility
+        function togglePaymentDetails(checked) {
+            const paymentDetails = document.getElementById('paymentDetails');
+            const paymentAmount = document.getElementById('paymentAmount');
+            
+            if (checked) {
+                paymentDetails.style.display = 'block';
+                // Set default payment amount to final amount
+                const totalAmount = document.getElementById('totalAmount').textContent;
+                paymentAmount.value = totalAmount;
+            } else {
+                paymentDetails.style.display = 'none';
+                // Clear payment fields
+                paymentAmount.value = '';
+                document.querySelector('select[name="payment_method"]').value = '';
+                document.querySelector('input[name="payment_reference"]').value = '';
+                document.querySelector('input[name="payment_proof"]').value = '';
+            }
+        }
+
+        // Update plan pricing display
+        function updatePlanPricing(planId) {
+            const pricingDetails = document.getElementById('pricingDetails');
+            const planPrice = document.getElementById('planPrice');
+            const totalAmount = document.getElementById('totalAmount');
+            
+            if (planId && plansData[planId]) {
+                currentPlanPrice = plansData[planId].price;
+                planPrice.textContent = currentPlanPrice;
+                totalAmount.textContent = currentPlanPrice - currentDiscount;
+                pricingDetails.style.display = 'block';
+                
+                // Reset coupon
+                document.getElementById('tempCouponCode').value = '';
+                document.getElementById('appliedCouponCode').value = '';
+                document.getElementById('couponMessage').textContent = '';
+                document.getElementById('discountDetails').style.display = 'none';
+                currentDiscount = 0;
+                
+                // Reset payment checkbox
+                document.querySelector('input[name="payment_confirmed"]').checked = false;
+                togglePaymentDetails(false);
+            } else {
+                pricingDetails.style.display = 'none';
+            }
+        }
+
+        // Apply coupon
+        async function applyCoupon() {
+            const couponCode = document.getElementById('tempCouponCode').value;
+            const planId = document.querySelector('select[name="plan_id"]').value;
+            const couponMessage = document.getElementById('couponMessage');
+            const discountDetails = document.getElementById('discountDetails');
+            const discountAmount = document.getElementById('discountAmount');
+            const totalAmount = document.getElementById('totalAmount');
+            const paymentAmount = document.getElementById('paymentAmount');
+            
+            if (!couponCode) {
+                couponMessage.textContent = 'Please enter a coupon code';
+                couponMessage.className = 'form-hint mt-1 text-danger';
+                return;
+            }
+            
+            if (!planId) {
+                couponMessage.textContent = 'Please select a plan first';
+                couponMessage.className = 'form-hint mt-1 text-danger';
+                return;
+            }
+            
+            try {
+                const response = await fetch('/coupons/api/validate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        code: couponCode,
+                        amount: currentPlanPrice,
+                        plan_id: planId
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentDiscount = data.discount;
+                    document.getElementById('appliedCouponCode').value = couponCode;
+                    discountAmount.textContent = currentDiscount;
+                    totalAmount.textContent = data.final_amount;
+                    couponMessage.textContent = data.message;
+                    couponMessage.className = 'form-hint mt-1 text-success';
+                    discountDetails.style.display = 'block';
+                    
+                    // Update payment amount if payment is confirmed
+                    if (document.querySelector('input[name="payment_confirmed"]').checked) {
+                        paymentAmount.value = data.final_amount;
+                    }
+                } else {
+                    currentDiscount = 0;
+                    document.getElementById('appliedCouponCode').value = '';
+                    totalAmount.textContent = currentPlanPrice;
+                    couponMessage.textContent = data.message || 'Invalid coupon';
+                    couponMessage.className = 'form-hint mt-1 text-danger';
+                    discountDetails.style.display = 'none';
+                    
+                    // Update payment amount if payment is confirmed
+                    if (document.querySelector('input[name="payment_confirmed"]').checked) {
+                        paymentAmount.value = currentPlanPrice;
+                    }
+                }
+            } catch (error) {
+                console.error('Error applying coupon:', error);
+                couponMessage.textContent = 'Error applying coupon';
+                couponMessage.className = 'form-hint mt-1 text-danger';
+            }
+        }
+    {% endif %}
+{% endif %}
+</script>
+{% endblock %}

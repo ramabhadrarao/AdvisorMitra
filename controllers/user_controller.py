@@ -647,7 +647,39 @@ def agents():
                          total_pages=result['total_pages'],
                          partners_list=partners_list,
                          selected_partner=selected_partner)
-
+@users_bp.route('/agents/<agent_id>/details')
+@login_required
+@admin_required
+def agent_details(agent_id):
+    """View detailed agent information"""
+    user_service = UserService()
+    agent = user_service.get_user_by_id(agent_id)
+    
+    if not agent or agent.role != 'AGENT':
+        flash('Agent not found.', 'danger')
+        return redirect(url_for('users.agents'))
+    
+    # Check permissions
+    if current_user.is_partner():
+        if str(agent.partner_id) != current_user.id:
+            flash('You can only view details of your own agents.', 'danger')
+            return redirect(url_for('users.agents'))
+    
+    # Get partner details
+    partner = None
+    if agent.partner_id:
+        partner = user_service.get_user_by_id(str(agent.partner_id))
+    
+    # Get plan details
+    plan = None
+    if agent.plan_id:
+        plan_service = PlanService()
+        plan = plan_service.get_plan_by_id(str(agent.plan_id))
+    
+    return render_template('users/agent_details.html',
+                         agent=agent,
+                         partner=partner,
+                         plan=plan)
 @users_bp.route('/<user_id>/toggle-status', methods=['POST'])
 @login_required
 @admin_required
