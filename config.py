@@ -16,7 +16,9 @@ class Config:
     PROFILE_UPLOAD_FOLDER = 'static/uploads/profiles'
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB max file size
     ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
-    
+    # Payment proof upload config
+    PAYMENT_UPLOAD_FOLDER = 'static/uploads/payments'
+    PAYMENT_ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'pdf'}
     # Session Config
     PERMANENT_SESSION_LIFETIME = timedelta(hours=24)
     

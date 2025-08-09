@@ -114,3 +114,35 @@ def check_partner_pdf_limit(partner_id):
         return False, "Partner PDF limit reached"
     
     return True, partner.get('pdf_limit', 0) - total_pdfs
+# utils/helpers.py - Add these functions after the existing helper functions
+
+def allowed_payment_file(filename):
+    """Check if payment file extension is allowed"""
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in current_app.config.get('PAYMENT_ALLOWED_EXTENSIONS', {'png', 'jpg', 'jpeg', 'gif', 'pdf'})
+
+def save_payment_proof(file):
+    """Save uploaded payment proof and return filename"""
+    if file and allowed_payment_file(file.filename):
+        # Generate unique filename
+        random_hex = secrets.token_hex(8)
+        _, f_ext = os.path.splitext(file.filename)
+        filename = f"payment_{random_hex}{f_ext}"
+        
+        # Ensure upload directory exists
+        upload_path = os.path.join(current_app.root_path, current_app.config.get('PAYMENT_UPLOAD_FOLDER', 'static/uploads/payments'))
+        os.makedirs(upload_path, exist_ok=True)
+        
+        # Save file
+        file_path = os.path.join(upload_path, filename)
+        file.save(file_path)
+        
+        return filename
+    return None
+
+def delete_payment_proof(filename):
+    """Delete payment proof file"""
+    if filename:
+        file_path = os.path.join(current_app.root_path, current_app.config.get('PAYMENT_UPLOAD_FOLDER', 'static/uploads/payments'), filename)
+        if os.path.exists(file_path):
+            os.remove(file_path)

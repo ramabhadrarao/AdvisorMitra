@@ -75,6 +75,7 @@
                             {% endif %}
                             <th>Plan</th>
                             <th>PDF Usage</th>
+                            <th>Payment Status</th>
                             <th>Status</th>
                             <th>Registered</th>
                             <th class="w-1"></th>
@@ -131,6 +132,34 @@
                                     <div class="progress progress-sm">
                                         <div class="progress-bar bg-primary" style="width: {{ (agent.agent_pdf_generated / agent.agent_pdf_limit * 100) }}%" role="progressbar"></div>
                                     </div>
+                                {% else %}
+                                    <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if agent.plan_id %}
+                                    {% if agent.payment_confirmed %}
+                                        <div>
+                                            <span class="badge bg-success">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 12l5 5l10 -10" /></svg>
+                                                Paid
+                                            </span>
+                                            {% if agent.payment_amount %}
+                                                <div class="small text-muted">₹{{ agent.payment_amount }}</div>
+                                            {% endif %}
+                                        </div>
+                                        {% if agent.payment_method %}
+                                            <div class="small text-muted">{{ agent.payment_method|replace('_', ' ')|title }}</div>
+                                        {% endif %}
+                                        {% if agent.payment_proof %}
+                                            <a href="#" onclick="viewPaymentProof('{{ agent.id }}', '{{ agent.full_name or agent.username }}')" class="small">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M14 3v4a1 1 0 0 0 1 1h4" /><path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" /><path d="M9 15l2 2l4 -4" /></svg>
+                                                View Receipt
+                                            </a>
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="badge bg-warning">Pending</span>
+                                    {% endif %}
                                 {% else %}
                                     <span class="text-muted">-</span>
                                 {% endif %}
@@ -195,6 +224,13 @@
                                             </a>
                                             {% endif %}
                                             
+                                            {% if agent.plan_id and agent.payment_confirmed %}
+                                            <a class="dropdown-item" href="#" onclick="viewPaymentDetails('{{ agent.id }}', '{{ agent.full_name or agent.username }}')">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 5h-2a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-12a2 2 0 0 0 -2 -2h-2" /><path d="M9 3m0 2a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v0a2 2 0 0 1 -2 2h-2a2 2 0 0 1 -2 -2z" /><path d="M9 12l.01 0" /><path d="M13 12l2 2l4 -4" /></svg>
+                                                View Payment Details
+                                            </a>
+                                            {% endif %}
+                                            
                                             {% if agent.id != current_user.id %}
                                             <div class="dropdown-divider"></div>
                                             <form method="post" action="{{ url_for('users.toggle_status', user_id=agent.id) }}">
@@ -216,7 +252,7 @@
                         </tr>
                         {% else %}
                         <tr>
-                            <td colspan="{{ '8' if current_user.is_super_admin() else '7' }}" class="text-center text-muted py-4">
+                            <td colspan="{{ '9' if current_user.is_super_admin() else '8' }}" class="text-center text-muted py-4">
                                 No agents found
                             </td>
                         </tr>
@@ -331,15 +367,15 @@
     </div>
 </div>
 
-<!-- Assign Plan Modal -->
+<!-- Assign Plan Modal with Payment -->
 <div class="modal modal-blur fade" id="assignPlanModal" tabindex="-1" role="dialog" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered" role="document">
+    <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">Assign Plan to Agent</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form method="post" id="assignPlanForm">
+            <form method="post" id="assignPlanForm" enctype="multipart/form-data">
                 <div class="modal-body">
                     <div class="mb-3">
                         <label class="form-label">Agent</label>
@@ -394,6 +430,50 @@
                                 <strong>₹<span id="totalAmount">0</span></strong>
                             </div>
                         </div>
+                        
+                        <!-- Payment Confirmation Section -->
+                        <hr>
+                        <h4>Payment Confirmation</h4>
+                        
+                        <div class="mb-3">
+                            <label class="form-check">
+                                <input type="checkbox" name="payment_confirmed" class="form-check-input" onchange="togglePaymentDetails(this.checked)">
+                                <span class="form-check-label">Payment has been received</span>
+                            </label>
+                        </div>
+                        
+                        <div id="paymentDetails" style="display: none;">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Payment Amount</label>
+                                    <input type="number" name="payment_amount" id="paymentAmount" class="form-control" step="0.01" min="0">
+                                    <small class="form-hint">Leave empty to use final amount</small>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label">Payment Method</label>
+                                    <select name="payment_method" class="form-select">
+                                        <option value="">Select method...</option>
+                                        <option value="CASH">Cash</option>
+                                        <option value="BANK_TRANSFER">Bank Transfer</option>
+                                        <option value="UPI">UPI</option>
+                                        <option value="CARD">Credit/Debit Card</option>
+                                        <option value="CHEQUE">Cheque</option>
+                                        <option value="OTHER">Other</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Payment Reference/Transaction ID</label>
+                                <input type="text" name="payment_reference" class="form-control" placeholder="Transaction ID or reference number">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Payment Proof (Optional)</label>
+                                <input type="file" name="payment_proof" class="form-control" accept="image/*,.pdf">
+                                <small class="form-hint">Upload receipt, screenshot or PDF (Max 16MB)</small>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -404,13 +484,100 @@
         </div>
     </div>
 </div>
+
+<!-- Payment Details Modal -->
+<div class="modal modal-blur fade" id="paymentDetailsModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Payment Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <h4 id="paymentAgentName" class="mb-3"></h4>
+                <div class="datagrid">
+                    <div class="datagrid-item">
+                        <div class="datagrid-title">Payment Status</div>
+                        <div class="datagrid-content">
+                            <span class="badge bg-success">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-sm" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M5 12l5 5l10 -10" /></svg>
+                                Confirmed
+                            </span>
+                        </div>
+                    </div>
+                    <div class="datagrid-item">
+                        <div class="datagrid-title">Amount Paid</div>
+                        <div class="datagrid-content">
+                            ₹<span id="paymentAmountDisplay">0</span>
+                        </div>
+                    </div>
+                    <div class="datagrid-item">
+                        <div class="datagrid-title">Payment Method</div>
+                        <div class="datagrid-content" id="paymentMethodDisplay">-</div>
+                    </div>
+                    <div class="datagrid-item">
+                        <div class="datagrid-title">Reference/Transaction ID</div>
+                        <div class="datagrid-content" id="paymentReferenceDisplay">-</div>
+                    </div>
+                    <div class="datagrid-item">
+                        <div class="datagrid-title">Payment Date</div>
+                        <div class="datagrid-content" id="paymentDateDisplay">-</div>
+                    </div>
+                    <div class="datagrid-item">
+                        <div class="datagrid-title">Plan Price</div>
+                        <div class="datagrid-content">
+                            ₹<span id="planPriceDisplay">0</span>
+                            <span id="couponUsedDisplay" class="text-muted small"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-3" id="paymentProofSection" style="display: none;">
+                    <label class="form-label">Payment Proof</label>
+                    <div>
+                        <a href="#" id="viewProofBtn" class="btn btn-primary btn-sm" target="_blank">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" /><path d="M21 12c-2.4 4 -5.4 6 -9 6c-3.6 0 -6.6 -2 -9 -6c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6" /></svg>
+                            View Payment Proof
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Payment Proof Viewer Modal -->
+<div class="modal modal-blur fade" id="paymentProofModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Payment Proof - <span id="proofAgentName"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center">
+                <div id="proofContent"></div>
+            </div>
+            <div class="modal-footer">
+                <a href="#" id="downloadProofBtn" class="btn btn-primary" download>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-2" /><path d="M7 11l5 5l5 -5" /><path d="M12 4l0 12" /></svg>
+                    Download
+                </a>
+                <button type="button" class="btn" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
+// Global variables
 let plansData = {};
 let currentPlanPrice = 0;
 let currentDiscount = 0;
+let agentsPaymentData = {};
 
 // Simple modal handling functions
 function showModal(modalId) {
@@ -554,6 +721,8 @@ async function showAssignPlanModal(agentId, agentName) {
     document.getElementById('couponMessage').textContent = '';
     document.getElementById('discountDetails').style.display = 'none';
     document.getElementById('pricingDetails').style.display = 'none';
+    document.querySelector('input[name="payment_confirmed"]').checked = false;
+    togglePaymentDetails(false);
     currentDiscount = 0;
     
     // Load available plans
@@ -585,6 +754,26 @@ async function loadPlans() {
     }
 }
 
+// Toggle payment details visibility
+function togglePaymentDetails(checked) {
+    const paymentDetails = document.getElementById('paymentDetails');
+    const paymentAmount = document.getElementById('paymentAmount');
+    
+    if (checked) {
+        paymentDetails.style.display = 'block';
+        // Set default payment amount to final amount
+        const totalAmount = document.getElementById('totalAmount').textContent;
+        paymentAmount.value = totalAmount;
+    } else {
+        paymentDetails.style.display = 'none';
+        // Clear payment fields
+        paymentAmount.value = '';
+        document.querySelector('select[name="payment_method"]').value = '';
+        document.querySelector('input[name="payment_reference"]').value = '';
+        document.querySelector('input[name="payment_proof"]').value = '';
+    }
+}
+
 // Update plan pricing display
 function updatePlanPricing(planId) {
     const pricingDetails = document.getElementById('pricingDetails');
@@ -603,6 +792,10 @@ function updatePlanPricing(planId) {
         document.getElementById('couponMessage').textContent = '';
         document.getElementById('discountDetails').style.display = 'none';
         currentDiscount = 0;
+        
+        // Reset payment checkbox
+        document.querySelector('input[name="payment_confirmed"]').checked = false;
+        togglePaymentDetails(false);
     } else {
         pricingDetails.style.display = 'none';
     }
@@ -616,6 +809,7 @@ async function applyCoupon() {
     const discountDetails = document.getElementById('discountDetails');
     const discountAmount = document.getElementById('discountAmount');
     const totalAmount = document.getElementById('totalAmount');
+    const paymentAmount = document.getElementById('paymentAmount');
     
     if (!couponCode) {
         couponMessage.textContent = 'Please enter a coupon code';
@@ -652,6 +846,11 @@ async function applyCoupon() {
             couponMessage.textContent = data.message;
             couponMessage.className = 'form-hint mt-1 text-success';
             discountDetails.style.display = 'block';
+            
+            // Update payment amount if payment is confirmed
+            if (document.querySelector('input[name="payment_confirmed"]').checked) {
+                paymentAmount.value = data.final_amount;
+            }
         } else {
             currentDiscount = 0;
             document.getElementById('appliedCouponCode').value = '';
@@ -659,6 +858,11 @@ async function applyCoupon() {
             couponMessage.textContent = data.message || 'Invalid coupon';
             couponMessage.className = 'form-hint mt-1 text-danger';
             discountDetails.style.display = 'none';
+            
+            // Update payment amount if payment is confirmed
+            if (document.querySelector('input[name="payment_confirmed"]').checked) {
+                paymentAmount.value = currentPlanPrice;
+            }
         }
     } catch (error) {
         console.error('Error applying coupon:', error);
@@ -666,5 +870,171 @@ async function applyCoupon() {
         couponMessage.className = 'form-hint mt-1 text-danger';
     }
 }
+
+// Fetch payment details when page loads
+async function fetchAgentPaymentData() {
+    console.log('Starting to fetch agent payment data...');
+    const agentRows = document.querySelectorAll('tbody tr');
+    console.log('Found agent rows:', agentRows.length);
+    
+    for (const row of agentRows) {
+        const actionBtn = row.querySelector('[onclick*="viewPaymentDetails"]');
+        if (actionBtn) {
+            const onclickAttr = actionBtn.getAttribute('onclick');
+            const match = onclickAttr.match(/'([^']+)'/);
+            if (match && match[1]) {
+                const agentId = match[1];
+                console.log('Fetching payment data for agent:', agentId);
+                try {
+                    const response = await fetch(`/users/api/payment-details/${agentId}`);
+                    console.log(`Response for agent ${agentId}:`, response.status);
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data.success) {
+                            agentsPaymentData[agentId] = data.payment;
+                            console.log(`Payment data cached for agent ${agentId}`);
+                        }
+                    }
+                } catch (error) {
+                    console.error(`Error fetching payment data for agent ${agentId}:`, error);
+                }
+            }
+        }
+    }
+    console.log('Finished fetching payment data. Cached data:', agentsPaymentData);
+}
+
+// View payment details
+function viewPaymentDetails(agentId, agentName) {
+    console.log('Viewing payment details for agent:', agentId, agentName);
+    const paymentData = agentsPaymentData[agentId];
+    
+    if (!paymentData) {
+        // Fetch data if not already loaded
+        console.log('Payment data not cached, fetching from server...');
+        fetch(`/users/api/payment-details/${agentId}`)
+            .then(response => {
+                console.log('Response status:', response.status);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Received data:', data);
+                if (data.success) {
+                    agentsPaymentData[agentId] = data.payment;
+                    showPaymentDetailsModal(agentId, agentName, data.payment);
+                } else {
+                    alert('Error loading payment details: ' + (data.error || 'Unknown error'));
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching payment details:', error);
+                alert('Error loading payment details: ' + error.message);
+            });
+    } else {
+        console.log('Using cached payment data:', paymentData);
+        showPaymentDetailsModal(agentId, agentName, paymentData);
+    }
+}
+
+// Show payment details modal
+function showPaymentDetailsModal(agentId, agentName, paymentData) {
+    document.getElementById('paymentAgentName').textContent = agentName;
+    document.getElementById('paymentAmountDisplay').textContent = paymentData.payment_amount || paymentData.plan_price_paid || '0';
+    document.getElementById('paymentMethodDisplay').textContent = paymentData.payment_method ? paymentData.payment_method.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : '-';
+    document.getElementById('paymentReferenceDisplay').textContent = paymentData.payment_reference || '-';
+    document.getElementById('paymentDateDisplay').textContent = paymentData.payment_date ? new Date(paymentData.payment_date).toLocaleDateString() : '-';
+    document.getElementById('planPriceDisplay').textContent = paymentData.plan_price_paid || '0';
+    
+    if (paymentData.plan_coupon_used) {
+        document.getElementById('couponUsedDisplay').textContent = ` (Coupon: ${paymentData.plan_coupon_used})`;
+    } else {
+        document.getElementById('couponUsedDisplay').textContent = '';
+    }
+    
+    // Handle payment proof
+    const proofSection = document.getElementById('paymentProofSection');
+    const viewProofBtn = document.getElementById('viewProofBtn');
+    
+    if (paymentData.payment_proof) {
+        proofSection.style.display = 'block';
+        viewProofBtn.onclick = function(e) {
+            e.preventDefault();
+            viewPaymentProof(agentId, agentName);
+        };
+    } else {
+        proofSection.style.display = 'none';
+    }
+    
+    // Show modal using Bootstrap if available, otherwise use custom function
+    if (typeof bootstrap !== 'undefined') {
+        const modal = new bootstrap.Modal(document.getElementById('paymentDetailsModal'));
+        modal.show();
+    } else {
+        showModal('paymentDetailsModal');
+    }
+}
+
+// View payment proof
+function viewPaymentProof(agentId, agentName) {
+    const paymentData = agentsPaymentData[agentId];
+    
+    if (!paymentData || !paymentData.payment_proof) {
+        alert('No payment proof available');
+        return;
+    }
+    
+    document.getElementById('proofAgentName').textContent = agentName;
+    
+    const proofUrl = `/users/payment-proof/${paymentData.payment_proof}`;
+    const proofContent = document.getElementById('proofContent');
+    const downloadBtn = document.getElementById('downloadProofBtn');
+    
+    // Clear previous content
+    proofContent.innerHTML = '';
+    
+    // Check file extension
+    const fileExt = paymentData.payment_proof.split('.').pop().toLowerCase();
+    
+    if (['jpg', 'jpeg', 'png', 'gif'].includes(fileExt)) {
+        // Display image
+        const img = document.createElement('img');
+        img.src = proofUrl;
+        img.className = 'img-fluid';
+        img.style.maxHeight = '70vh';
+        proofContent.appendChild(img);
+    } else if (fileExt === 'pdf') {
+        // Display PDF in iframe
+        const iframe = document.createElement('iframe');
+        iframe.src = proofUrl;
+        iframe.style.width = '100%';
+        iframe.style.height = '70vh';
+        iframe.style.border = 'none';
+        proofContent.appendChild(iframe);
+    } else {
+        // Unknown file type
+        proofContent.innerHTML = '<p class="text-muted">Preview not available. Please download the file to view.</p>';
+    }
+    
+    // Set download link
+    downloadBtn.href = proofUrl;
+    downloadBtn.download = `payment_proof_${agentName.replace(/\s+/g, '_')}_${paymentData.payment_proof}`;
+    
+    // Show modal
+    if (typeof bootstrap !== 'undefined') {
+        const modal = new bootstrap.Modal(document.getElementById('paymentProofModal'));
+        modal.show();
+    } else {
+        showModal('paymentProofModal');
+    }
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    // Fetch payment data for agents with payments
+    fetchAgentPaymentData();
+});
 </script>
 {% endblock %}

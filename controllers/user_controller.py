@@ -337,11 +337,69 @@ def partner_resources():
                          assigned_coupons=assigned_coupons,
                          pdf_used=pdf_used)
 
+# controllers/user_controller.py - Replace the assign_plan route (around line 285)
+# Add this to controllers/user_controller.py (at the end of the file)
+
+@users_bp.route('/api/payment-details/<user_id>')
+@login_required
+@admin_required
+def api_payment_details(user_id):
+    """Get payment details for an agent"""
+    user_service = UserService()
+    user = user_service.get_user_by_id(user_id)
+    
+    if not user or user.role != 'AGENT':
+        return jsonify({'error': 'User not found or not an agent'}), 404
+    
+    # Check permissions
+    if current_user.is_partner():
+        if str(user.partner_id) != current_user.id:
+            return jsonify({'error': 'Unauthorized'}), 403
+    
+    payment_data = {
+        'payment_confirmed': user.payment_confirmed,
+        'payment_amount': user.payment_amount,
+        'payment_method': user.payment_method,
+        'payment_reference': user.payment_reference,
+        'payment_date': user.payment_date.isoformat() if user.payment_date else None,
+        'payment_proof': user.payment_proof,
+        'plan_price_paid': user.plan_price_paid,
+        'plan_coupon_used': user.plan_coupon_used
+    }
+    
+    return jsonify({
+        'success': True,
+        'payment': payment_data
+    })
+
+@users_bp.route('/payment-proof/<filename>')
+@login_required
+@admin_required
+def view_payment_proof(filename):
+    """Serve payment proof file"""
+    from flask import send_from_directory
+    import os
+    
+    # Security check - ensure filename is safe
+    if '..' in filename or filename.startswith('/'):
+        return "Invalid filename", 400
+    
+    payment_folder = current_app.config.get('PAYMENT_UPLOAD_FOLDER', 'static/uploads/payments')
+    file_path = os.path.join(current_app.root_path, payment_folder, filename)
+    
+    if not os.path.exists(file_path):
+        return "File not found", 404
+    
+    # Get the directory and filename
+    directory = os.path.dirname(file_path)
+    filename = os.path.basename(file_path)
+    
+    return send_from_directory(directory, filename)
 @users_bp.route('/<user_id>/assign-plan', methods=['POST'])
 @login_required
 @admin_required
 def assign_plan(user_id):
-    """Assign plan to agent"""
+    """Assign plan to agent with payment confirmation"""
     user_service = UserService()
     user = user_service.get_user_by_id(user_id)
     
@@ -362,12 +420,33 @@ def assign_plan(user_id):
         flash('Please select a plan.', 'danger')
         return redirect(url_for('users.list'))
     
+    # Prepare payment data
+    payment_data = None
+    if request.form.get('payment_confirmed') == 'on':
+        payment_data = {
+            'payment_confirmed': True,
+            'payment_date': datetime.utcnow(),
+            'payment_amount': request.form.get('payment_amount'),
+            'payment_method': request.form.get('payment_method'),
+            'payment_reference': request.form.get('payment_reference')
+        }
+        
+        # Handle payment proof upload
+        if 'payment_proof' in request.files:
+            file = request.files['payment_proof']
+            if file and file.filename:
+                from utils.helpers import save_payment_proof
+                filename = save_payment_proof(file)
+                if filename:
+                    payment_data['payment_proof'] = filename
+    
     # Assign plan
     success, message = user_service.assign_plan_to_agent(
         user_id,
         plan_id,
         current_user.id,
-        coupon_code
+        coupon_code,
+        payment_data
     )
     
     if success:

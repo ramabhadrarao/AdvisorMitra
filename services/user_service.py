@@ -466,8 +466,10 @@ class UserService:
         
         return True, "No changes made"
     
-    def assign_plan_to_agent(self, agent_id, plan_id, assigned_by_id, coupon_code=None):
-        """Assign plan to agent with optional coupon"""
+    # services/user_service.py - Replace the assign_plan_to_agent method (around line 498)
+
+    def assign_plan_to_agent(self, agent_id, plan_id, assigned_by_id, coupon_code=None, payment_data=None):
+        """Assign plan to agent with optional coupon and payment confirmation"""
         # Get agent
         agent_data = self.users.find_one({'_id': ObjectId(agent_id), 'role': 'AGENT'})
         if not agent_data:
@@ -545,6 +547,15 @@ class UserService:
             'updated_at': datetime.utcnow()
         }
         
+        # Add payment data if provided
+        if payment_data:
+            update_data['payment_confirmed'] = payment_data.get('payment_confirmed', False)
+            update_data['payment_proof'] = payment_data.get('payment_proof')
+            update_data['payment_date'] = payment_data.get('payment_date', datetime.utcnow())
+            update_data['payment_amount'] = payment_data.get('payment_amount', final_price)
+            update_data['payment_method'] = payment_data.get('payment_method')
+            update_data['payment_reference'] = payment_data.get('payment_reference')
+        
         self.users.update_one(
             {'_id': ObjectId(agent_id)},
             {'$set': update_data}
@@ -559,7 +570,8 @@ class UserService:
                 'agent_id': agent_id,
                 'plan_id': plan_id,
                 'price': final_price,
-                'coupon': coupon_code
+                'coupon': coupon_code,
+                'payment_confirmed': payment_data.get('payment_confirmed', False) if payment_data else False
             }
         )
         

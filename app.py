@@ -27,7 +27,7 @@ def create_app(config_name='default'):
     # Create upload directories
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
     os.makedirs(app.config['PROFILE_UPLOAD_FOLDER'], exist_ok=True)
-    
+    os.makedirs(app.config.get('PAYMENT_UPLOAD_FOLDER', 'static/uploads/payments'), exist_ok=True)
     # Initialize Flask-Login
     login_manager = LoginManager()
     login_manager.init_app(app)

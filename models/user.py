@@ -32,6 +32,16 @@ class User:
             self.agent_pdf_generated = data.get('agent_pdf_generated', 0)
             self.agent_pdf_limit = data.get('agent_pdf_limit', 0)
             
+            # Payment tracking fields
+            self.payment_confirmed = data.get('payment_confirmed', False)
+            self.payment_proof = data.get('payment_proof')  # Filename of payment proof
+            self.payment_date = data.get('payment_date')
+            self.payment_amount = data.get('payment_amount')
+            self.payment_method = data.get('payment_method')
+            self.payment_reference = data.get('payment_reference')
+            self.plan_price_paid = data.get('plan_price_paid')  # Actual price paid after discount
+            self.plan_coupon_used = data.get('plan_coupon_used')  # Coupon code used
+            
             # Approval fields
             self.approval_status = data.get('approval_status', 'PENDING')  # PENDING, PARTNER_APPROVED, APPROVED, REJECTED
             self.requires_double_approval = data.get('requires_double_approval', True)
@@ -74,6 +84,12 @@ class User:
             'plan_expiry_date': self.plan_expiry_date,
             'agent_pdf_generated': self.agent_pdf_generated,
             'agent_pdf_limit': self.agent_pdf_limit,
+            'payment_confirmed': self.payment_confirmed,
+            'payment_proof': self.payment_proof,
+            'payment_date': self.payment_date,
+            'payment_amount': self.payment_amount,
+            'payment_method': self.payment_method,
+            'payment_reference': self.payment_reference,
             'approval_status': self.approval_status,
             'requires_double_approval': self.requires_double_approval,
             'partner_approved': self.partner_approved,
