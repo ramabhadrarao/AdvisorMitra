@@ -33,19 +33,7 @@ def index():
     service = HealthInsuranceFormService()
     result = service.get_agent_forms(current_user.id, page)
     
-    # Convert form dicts to objects for template
-    class FormObject:
-        def __init__(self, data):
-            for key, value in data.items():
-                setattr(self, key, value)
-        
-        @property
-        def id(self):
-            return str(self._id) if hasattr(self, '_id') else str(getattr(self, 'id', ''))
-    
-    forms = [FormObject(form) for form in result['forms']]
-    result['forms'] = forms
-    
+    # The service already returns HealthInsuranceForm objects, no need to convert
     return render_template('forms/health_insurance/list.html', **result)
 
 @health_insurance_bp.route('/links')
@@ -60,19 +48,7 @@ def links():
     service = HealthInsuranceFormService()
     result = service.get_form_links(current_user.id, page)
     
-    # Convert link dicts to objects for template
-    class LinkObject:
-        def __init__(self, data):
-            for key, value in data.items():
-                setattr(self, key, value)
-        
-        @property
-        def id(self):
-            return str(self._id) if hasattr(self, '_id') else str(getattr(self, 'id', ''))
-    
-    links = [LinkObject(link) for link in result['links']]
-    result['links'] = links
-    
+    # The service already returns FormLink objects, no need to convert
     return render_template('forms/health_insurance/links.html', **result)
 
 @health_insurance_bp.route('/create-link', methods=['GET', 'POST'])
@@ -144,7 +120,7 @@ def public_form(token):
             'major_surgery': request.form.get('major_surgery'),
             'existing_insurance': request.form.get('existing_insurance'),
             'current_coverage': float(request.form.get('current_coverage', 0)),
-            'port_policy': request.form.get('port_policy'),
+            'port_policy': request.form.get('port_policy', 'No'),
             'language': link.language
         }
         
@@ -184,28 +160,16 @@ def view_form(form_id):
         return redirect(url_for('dashboard.index'))
     
     service = HealthInsuranceFormService()
-    form_data = service.get_form_by_id(form_id)
+    form = service.get_form_by_id(form_id)
     
-    if not form_data:
+    if not form:
         flash('Form not found.', 'danger')
         return redirect(url_for('health_insurance.index'))
     
     # Verify agent owns this form
-    if form_data['agent_id'] != current_user.id:
+    if str(form.agent_id) != current_user.id:
         flash('Unauthorized access.', 'danger')
         return redirect(url_for('health_insurance.index'))
-    
-    # Convert dict to object-like structure for template
-    class FormObject:
-        def __init__(self, data):
-            for key, value in data.items():
-                setattr(self, key, value)
-        
-        @property
-        def id(self):
-            return str(self._id) if hasattr(self, '_id') else str(getattr(self, 'id', ''))
-    
-    form = FormObject(form_data)
     
     return render_template('forms/health_insurance/view.html', form=form)
 
@@ -239,17 +203,17 @@ def download_pdf(form_id, filename):
         return redirect(url_for('dashboard.index'))
     
     service = HealthInsuranceFormService()
-    form_data = service.get_form_by_id(form_id)
+    form = service.get_form_by_id(form_id)
     
-    if not form_data or form_data['agent_id'] != current_user.id:
+    if not form or str(form.agent_id) != current_user.id:
         flash('Unauthorized access.', 'danger')
         return redirect(url_for('health_insurance.index'))
     
-    if form_data.get('pdf_filename') != filename:
+    if form.pdf_filename != filename:
         flash('Invalid file.', 'danger')
         return redirect(url_for('health_insurance.index'))
     
-    pdf_path = os.path.join('/root/generated_pdfs', filename)
+    pdf_path = os.path.join(os.getcwd(), 'static', 'generated_pdfs', filename)
     
     if not os.path.exists(pdf_path):
         flash('PDF file not found.', 'danger')

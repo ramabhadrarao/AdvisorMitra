@@ -6,15 +6,21 @@ from models.forms.health_insurance_form import HealthInsuranceForm
 from models.forms.form_link import FormLink
 from models import get_users_collection
 from utils.helpers import log_activity
-import subprocess
 import os
-from flask import current_app
+# PDF generator import will be added after setup
+try:
+    from services.forms.pdf_generators.health_insurance_pdf_generator import HealthInsurancePDFGenerator
+    PDF_GENERATOR_AVAILABLE = True
+except ImportError:
+    PDF_GENERATOR_AVAILABLE = False
+    print("Warning: PDF generator not available. Please set up health_insurance_pdf_generator.py")
 
 class HealthInsuranceFormService:
     def __init__(self):
         self.forms = get_health_insurance_forms_collection()
         self.form_links = get_form_links_collection()
         self.users = get_users_collection()
+        self.pdf_generator = HealthInsurancePDFGenerator() if PDF_GENERATOR_AVAILABLE else None
     
     def create_form_link(self, agent_id, language='en', expires_days=30, usage_limit=None):
         """Create a form link for health insurance"""
@@ -182,72 +188,57 @@ class HealthInsuranceFormService:
                 return form.pdf_filename, None
         
         try:
-            # Prepare data for PDF generation
-            # Note: You'll need to adapt the PDF generator script to accept form data
-            # For now, we'll use the email as the identifier
+            # Check if PDF generator is available
+            if not PDF_GENERATOR_AVAILABLE or not self.pdf_generator:
+                return None, "PDF generator not configured. Please contact administrator."
             
-            # Call PDF generator
-            cmd = [
-                'python3',
-                '/path/to/AM-MF-HealthInsurance-en.py',  # Update this path
-                form.email,
-                agent.get('full_name', 'Agent'),
-                agent.get('phone', '')
-            ]
+            # Generate PDF using the PDF generator class
+            agent_info = {
+                'name': agent.get('full_name', 'Agent'),
+                'phone': agent.get('phone', '')
+            }
             
-            result = subprocess.run(cmd, capture_output=True, text=True)
+            pdf_filename = self.pdf_generator.generate_pdf(str(form_id), agent_info)
             
-            if result.returncode != 0:
-                return None, f"PDF generation failed: {result.stderr}"
-            
-            # Extract filename from output
-            output_lines = result.stdout.strip().split('\n')
-            pdf_filename = None
-            
-            for line in output_lines:
-                if line.startswith('PDF_FILENAME='):
-                    pdf_filename = line.split('=')[1]
-                    break
-            
-            if not pdf_filename:
-                return None, "PDF filename not found in output"
-            
-            # Update form with PDF info
-            self.forms.update_one(
-                {'_id': ObjectId(form_id)},
-                {
-                    '$set': {
-                        'pdf_generated': True,
-                        'pdf_generated_at': datetime.utcnow(),
-                        'pdf_filename': pdf_filename,
-                        'updated_at': datetime.utcnow()
+            if pdf_filename:
+                # Update form with PDF info
+                self.forms.update_one(
+                    {'_id': ObjectId(form_id)},
+                    {
+                        '$set': {
+                            'pdf_generated': True,
+                            'pdf_generated_at': datetime.utcnow(),
+                            'pdf_filename': pdf_filename,
+                            'updated_at': datetime.utcnow()
+                        }
                     }
-                }
-            )
-            
-            # Increment agent's PDF count
-            self.users.update_one(
-                {'_id': ObjectId(agent_id)},
-                {'$inc': {'agent_pdf_generated': 1}}
-            )
-            
-            # Update partner's PDF count
-            if agent.get('partner_id'):
-                self.users.update_one(
-                    {'_id': agent['partner_id']},
-                    {'$inc': {'pdf_generated': 1}}
                 )
-            
-            # Log activity
-            log_activity(
-                agent_id,
-                'PDF_GENERATED',
-                f"Generated health insurance PDF for {form.name}",
-                {'form_id': form_id, 'pdf_filename': pdf_filename}
-            )
-            
-            return pdf_filename, None
-            
+                
+                # Increment agent's PDF count
+                self.users.update_one(
+                    {'_id': ObjectId(agent_id)},
+                    {'$inc': {'agent_pdf_generated': 1}}
+                )
+                
+                # Update partner's PDF count
+                if agent.get('partner_id'):
+                    self.users.update_one(
+                        {'_id': agent['partner_id']},
+                        {'$inc': {'pdf_generated': 1}}
+                    )
+                
+                # Log activity
+                log_activity(
+                    agent_id,
+                    'PDF_GENERATED',
+                    f"Generated health insurance PDF for {form.name}",
+                    {'form_id': form_id, 'pdf_filename': pdf_filename}
+                )
+                
+                return pdf_filename, None
+            else:
+                return None, "PDF generation failed"
+                
         except Exception as e:
             return None, f"PDF generation error: {str(e)}"
     
