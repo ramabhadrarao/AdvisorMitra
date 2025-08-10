@@ -1,0 +1,421 @@
+{% extends "base.html" %}
+
+{% block title %}Live Form Progress - Health Insurance{% endblock %}
+
+{% block extra_css %}
+<style>
+    .progress-card {
+        border-left: 4px solid #206bc4;
+        transition: all 0.3s ease;
+        position: relative;
+    }
+    .progress-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+    .progress-bar {
+        height: 8px;
+        border-radius: 4px;
+        background-color: #e9ecef;
+        overflow: hidden;
+    }
+    .progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #206bc4, #28a745);
+        transition: width 0.5s ease;
+    }
+    .customer-typing {
+        animation: pulse 1.5s infinite;
+        border-left-color: #28a745 !important;
+    }
+    @keyframes pulse {
+        0% { opacity: 1; box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.4); }
+        50% { opacity: 0.8; box-shadow: 0 0 0 10px rgba(40, 167, 69, 0); }
+        100% { opacity: 1; box-shadow: 0 0 0 0 rgba(40, 167, 69, 0); }
+    }
+    .field-list {
+        max-height: 200px;
+        overflow-y: auto;
+    }
+    .field-completed {
+        color: #28a745;
+        font-weight: 500;
+    }
+    .field-empty {
+        color: #6c757d;
+    }
+    .refresh-btn {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        z-index: 1000;
+    }
+    .connection-indicator {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        z-index: 1001;
+        padding: 8px 16px;
+        border-radius: 20px;
+        font-size: 14px;
+        font-weight: 500;
+    }
+    .connected {
+        background-color: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+    }
+    .disconnected {
+        background-color: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+    }
+    .new-update {
+        animation: highlight 2s ease-out;
+    }
+    @keyframes highlight {
+        0% { background-color: #fff3cd; }
+        100% { background-color: transparent; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-print-none">
+    <div class="container-xl">
+        <div class="row g-2 align-items-center">
+            <div class="col">
+                <h2 class="page-title">Live Form Progress</h2>
+                <div class="text-muted mt-1">Real-time tracking of customer form submissions</div>
+            </div>
+            <div class="col-auto ms-auto d-print-none">
+                <div class="btn-list">
+                    <button class="btn btn-primary" onclick="refreshForms()">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" /></svg>
+                        Refresh
+                    </button>
+                    <a href="{{ url_for('health_insurance.index') }}" class="btn btn-secondary">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 11l-4 4l4 4m-4 -4h11a4 4 0 0 0 0 -8h-1" /></svg>
+                        Back to Forms
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Connection Indicator -->
+<div id="connectionIndicator" class="connection-indicator disconnected">
+    🔴 Connecting...
+</div>
+
+<div class="page-body">
+    <div class="container-xl">
+        <!-- Debug Info (hidden by default) -->
+        <div class="card mb-3" id="debugInfo" style="display: none;">
+            <div class="card-header">
+                <h3 class="card-title">Debug Information</h3>
+                <button class="btn btn-sm btn-secondary" onclick="toggleDebug()">Toggle Debug</button>
+            </div>
+            <div class="card-body">
+                <div id="debugContent"></div>
+            </div>
+        </div>
+
+        <!-- Active Forms -->
+        <div class="row" id="activeFormsContainer">
+            <!-- Dynamic content will be loaded here -->
+        </div>
+
+        <!-- Empty State -->
+        <div class="empty" id="emptyState" style="display: none;">
+            <div class="empty-img">
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="128" height="128" viewBox="0 0 24 24" stroke-width="1" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 5h-2a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-12a2 2 0 0 0 -2 -2h-2" /><path d="M9 3m0 2a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v0a2 2 0 0 1 -2 2h-2a2 2 0 0 1 -2 -2z" /></svg>
+            </div>
+            <p class="empty-title">No active forms</p>
+            <p class="empty-subtitle text-muted">
+                Customers will appear here when they start filling your forms.
+            </p>
+            <div class="empty-action">
+                <a href="{{ url_for('health_insurance.create_link') }}" class="btn btn-primary">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 5l0 14" /><path d="M5 12l14 0" /></svg>
+                    Create Form Link
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Refresh Button -->
+<button class="btn btn-primary btn-lg refresh-btn" onclick="refreshForms()" title="Refresh Forms">
+    <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4" /><path d="M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" /></svg>
+</button>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.4/socket.io.js"></script>
+<script>
+// SocketIO connection
+const socket = io();
+let activeForms = {};
+let isConnected = false;
+let debugMode = false;
+
+console.log('🚀 Live Progress Dashboard starting...');
+
+// Debug functions
+function toggleDebug() {
+    debugMode = !debugMode;
+    document.getElementById('debugInfo').style.display = debugMode ? 'block' : 'none';
+    if (debugMode) {
+        updateDebugInfo('Debug mode enabled');
+    }
+}
+
+function updateDebugInfo(message) {
+    if (!debugMode) return;
+    const now = new Date().toLocaleTimeString();
+    const debugContent = document.getElementById('debugContent');
+    debugContent.innerHTML += `<div>[${now}] ${message}</div>`;
+    debugContent.scrollTop = debugContent.scrollHeight;
+}
+
+// Connection status
+socket.on('connect', function() {
+    console.log('✅ Connected to server');
+    isConnected = true;
+    updateConnectionStatus(true, 'Connected to server');
+    updateDebugInfo('✅ Connected to server');
+    
+    // Join agent room for receiving updates
+    socket.emit('join_agent_room', {});
+});
+
+socket.on('disconnect', function() {
+    console.log('❌ Disconnected from server');
+    isConnected = false;
+    updateConnectionStatus(false, 'Disconnected from server');
+    updateDebugInfo('❌ Disconnected from server');
+});
+
+socket.on('connect_error', function(error) {
+    console.error('❌ Connection error:', error);
+    updateConnectionStatus(false, 'Connection error');
+    updateDebugInfo('❌ Connection error: ' + error);
+});
+
+socket.on('joined_room', function(data) {
+    console.log('✅ Joined room:', data.room);
+    updateConnectionStatus(true, 'Live tracking active');
+    updateDebugInfo('✅ Joined room: ' + data.room);
+    
+    // Request active forms immediately
+    socket.emit('get_active_forms');
+});
+
+socket.on('error', function(error) {
+    console.error('❌ Socket error:', error);
+    updateDebugInfo('❌ Socket error: ' + JSON.stringify(error));
+});
+
+// Progress updates
+socket.on('progress_update', function(data) {
+    console.log('📝 Progress update received:', data);
+    updateDebugInfo('📝 Progress update: ' + data.field_name + ' = ' + data.field_value);
+    updateFormProgress(data);
+});
+
+// Active forms update
+socket.on('active_forms_update', function(data) {
+    console.log('📋 Active forms update:', data);
+    updateDebugInfo('📋 Received ' + data.forms.length + ' active forms');
+    displayActiveForms(data.forms);
+});
+
+function updateConnectionStatus(connected, message) {
+    const indicator = document.getElementById('connectionIndicator');
+    if (connected) {
+        indicator.className = 'connection-indicator connected';
+        indicator.innerHTML = '🟢 ' + message;
+    } else {
+        indicator.className = 'connection-indicator disconnected';
+        indicator.innerHTML = '🔴 ' + message;
+    }
+}
+
+function displayActiveForms(forms) {
+    const container = document.getElementById('activeFormsContainer');
+    const emptyState = document.getElementById('emptyState');
+    
+    console.log('📊 Displaying', forms.length, 'forms');
+    
+    if (!forms || forms.length === 0) {
+        container.innerHTML = '';
+        emptyState.style.display = 'block';
+        updateDebugInfo('📊 No active forms to display');
+        return;
+    }
+    
+    emptyState.style.display = 'none';
+    activeForms = {};
+    
+    container.innerHTML = forms.map(form => {
+        activeForms[form.token] = form;
+        return createFormCard(form);
+    }).join('');
+    
+    updateDebugInfo('📊 Displayed ' + forms.length + ' active forms');
+}
+
+function createFormCard(form) {
+    const customerName = form.customer_info?.name || 'Customer filling form...';
+    const customerEmail = form.customer_info?.email || '';
+    const customerMobile = form.customer_info?.mobile || '';
+    const percentage = Math.round(form.percentage || 0);
+    const completedFields = Object.keys(form.completed_fields || {}).filter(key => {
+        const value = form.completed_fields[key];
+        return value && value.toString().trim() !== '';
+    }).length;
+    const lastUpdate = form.last_update ? new Date(form.last_update).toLocaleTimeString() : 'Just started';
+    
+    return `
+        <div class="col-md-6 col-lg-4 mb-4">
+            <div class="card progress-card" id="form-${form.token}">
+                <div class="card-status-top bg-${percentage < 30 ? 'danger' : percentage < 70 ? 'warning' : 'success'}"></div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <div>
+                            <h3 class="card-title">${customerName}</h3>
+                            <p class="text-muted mb-0 small">
+                                ${customerEmail ? `📧 ${customerEmail}<br>` : ''}
+                                ${customerMobile ? `📱 ${customerMobile}` : ''}
+                            </p>
+                        </div>
+                        <span class="badge bg-primary fs-6">${percentage}%</span>
+                    </div>
+                    
+                    <div class="progress-bar mb-3">
+                        <div class="progress-fill" style="width: ${percentage}%"></div>
+                    </div>
+                    
+                    <div class="row text-center mb-3">
+                        <div class="col">
+                            <div class="h4 mb-0">${completedFields}/12</div>
+                            <div class="text-muted small">Fields</div>
+                        </div>
+                        <div class="col">
+                            <div class="h6 mb-0">${lastUpdate}</div>
+                            <div class="text-muted small">Last Update</div>
+                        </div>
+                    </div>
+                    
+                    <div class="field-list">
+                        <h6 class="mb-2">Progress Details:</h6>
+                        ${createFieldsList(form.completed_fields || {})}
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function createFieldsList(completedFields) {
+    const allFields = [
+        { key: 'name', label: 'Name' },
+        { key: 'email', label: 'Email' },
+        { key: 'mobile', label: 'Mobile' },
+        { key: 'city_of_residence', label: 'City' },
+        { key: 'age', label: 'Age' },
+        { key: 'number_of_members', label: 'Family Members' },
+        { key: 'eldest_member_age', label: 'Eldest Age' },
+        { key: 'pre_existing_diseases', label: 'Pre-existing' },
+        { key: 'major_surgery', label: 'Surgery' },
+        { key: 'existing_insurance', label: 'Insurance' },
+        { key: 'current_coverage', label: 'Coverage' },
+        { key: 'port_policy', label: 'Port Policy' }
+    ];
+    
+    return allFields.map(field => {
+        const value = completedFields[field.key];
+        const isCompleted = value && value.toString().trim() !== '';
+        return `
+            <div class="d-flex justify-content-between align-items-center mb-1 small">
+                <span class="${isCompleted ? 'field-completed' : 'field-empty'}">${field.label}</span>
+                <span>${isCompleted ? '✅' : '⭕'}</span>
+            </div>
+        `;
+    }).join('');
+}
+
+function updateFormProgress(data) {
+    const token = data.token;
+    const formCard = document.getElementById(`form-${token}`);
+    
+    if (!formCard) {
+        console.log('⚠️ Form card not found for token:', token);
+        updateDebugInfo('⚠️ Form card not found, refreshing forms');
+        refreshForms();
+        return;
+    }
+    
+    // Update stored form data
+    if (activeForms[token] && data.progress_data) {
+        activeForms[token] = { ...activeForms[token], ...data.progress_data };
+        
+        // Add visual feedback
+        formCard.classList.add('customer-typing', 'new-update');
+        setTimeout(() => {
+            formCard.classList.remove('customer-typing', 'new-update');
+        }, 3000);
+        
+        // Update the card with new data
+        const updatedCard = createFormCard(activeForms[token]);
+        formCard.outerHTML = updatedCard;
+        
+        console.log('✅ Updated form card for token:', token);
+        updateDebugInfo('✅ Updated form: ' + data.field_name + ' (' + Math.round(activeForms[token].percentage) + '%)');
+    }
+}
+
+function refreshForms() {
+    console.log('🔄 Refreshing forms...');
+    updateDebugInfo('🔄 Manual refresh requested');
+    socket.emit('get_active_forms');
+}
+
+// Auto-refresh every 30 seconds
+setInterval(() => {
+    if (isConnected) {
+        console.log('🔄 Auto-refreshing forms...');
+        refreshForms();
+    }
+}, 30000);
+
+// Initial setup
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🎯 Live Progress Dashboard initialized');
+    updateDebugInfo('🎯 Dashboard initialized');
+    
+    // Show debug toggle in development
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+        const debugBtn = document.createElement('button');
+        debugBtn.textContent = 'Debug';
+        debugBtn.className = 'btn btn-sm btn-outline-secondary';
+        debugBtn.onclick = toggleDebug;
+        debugBtn.style.position = 'fixed';
+        debugBtn.style.bottom = '80px';
+        debugBtn.style.right = '20px';
+        debugBtn.style.zIndex = '1001';
+        document.body.appendChild(debugBtn);
+    }
+});
+
+// Debug: Log all socket events
+socket.onAny((event, ...args) => {
+    console.log('🔍 Socket event:', event, args);
+    if (debugMode && event !== 'progress_update') { // Avoid spam
+        updateDebugInfo('🔍 Event: ' + event);
+    }
+});
+</script>
+{% endblock %}

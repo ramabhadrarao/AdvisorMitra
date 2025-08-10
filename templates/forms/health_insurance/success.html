@@ -4,7 +4,7 @@
     <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
     <meta http-equiv="X-UA-Compatible" content="ie=edge"/>
-    <title>Form Submitted Successfully</title>
+    <title>{{ translations.title if translations else 'Form Submitted Successfully' }}</title>
     <link href="https://unpkg.com/@tabler/core@latest/dist/css/tabler.min.css" rel="stylesheet"/>
     <style>
         body {
@@ -36,28 +36,34 @@
                     <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-lg text-success" width="72" height="72" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><path d="M9 12l2 2l4 -4" /></svg>
                 </div>
                 
-                <h2 class="text-success">Thank You!</h2>
-                <p class="text-muted mb-4">Your health insurance requirement details have been submitted successfully.</p>
+                <h2 class="text-success">{{ translations.title if translations else 'Thank You!' }}</h2>
+                <p class="text-muted mb-4">{{ translations.message if translations else 'Your health insurance requirement details have been submitted successfully.' }}</p>
                 
                 <div class="alert alert-info text-start">
-                    <h4 class="alert-title">What happens next?</h4>
+                    <h4 class="alert-title">{{ translations.next_steps_title if translations else 'What happens next?' }}</h4>
                     <ul class="mb-0">
+                        {% if translations and translations.next_steps %}
+                            {% for step in translations.next_steps %}
+                            <li>{{ step }}</li>
+                            {% endfor %}
+                        {% else %}
                         <li>Your financial advisor will analyze your requirements</li>
                         <li>A personalized health insurance recommendation report will be prepared</li>
                         <li>You will be contacted with the best suitable options</li>
+                        {% endif %}
                     </ul>
                 </div>
                 
                 <div class="agent-contact">
-                    <h4>Your Financial Advisor</h4>
+                    <h4>{{ translations.advisor_title if translations else 'Your Financial Advisor' }}</h4>
                     <p class="mb-1"><strong>{{ agent_name }}</strong></p>
                     {% if agent_phone %}
-                    <p class="mb-0">Contact: <strong>{{ agent_phone }}</strong></p>
+                    <p class="mb-0">{{ translations.contact if translations else 'Contact' }}: <strong>{{ agent_phone }}</strong></p>
                     {% endif %}
                 </div>
                 
                 <div class="mt-4">
-                    <p class="text-muted small">Reference ID: {{ form_id }}</p>
+                    <p class="text-muted small">{{ translations.reference_id if translations else 'Reference ID' }}: {{ form_id }}</p>
                 </div>
             </div>
         </div>

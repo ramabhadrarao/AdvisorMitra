@@ -7,23 +7,15 @@ from models.forms.form_link import FormLink
 from models import get_users_collection
 from utils.helpers import log_activity
 import os
-# PDF generator import will be added after setup
-try:
-    from services.forms.pdf_generators.health_insurance_pdf_generator import HealthInsurancePDFGenerator
-    PDF_GENERATOR_AVAILABLE = True
-except ImportError:
-    PDF_GENERATOR_AVAILABLE = False
-    print("Warning: PDF generator not available. Please set up health_insurance_pdf_generator.py")
 
 class HealthInsuranceFormService:
     def __init__(self):
         self.forms = get_health_insurance_forms_collection()
         self.form_links = get_form_links_collection()
         self.users = get_users_collection()
-        self.pdf_generator = HealthInsurancePDFGenerator() if PDF_GENERATOR_AVAILABLE else None
     
-    def create_form_link(self, agent_id, language='en', expires_days=30, usage_limit=None):
-        """Create a form link for health insurance"""
+    def create_form_link(self, agent_id, language='en', expires_days=30, usage_limit=1):
+        """Create a form link for health insurance with default single use"""
         # Get agent details
         agent = self.users.find_one({'_id': ObjectId(agent_id)})
         if not agent:
@@ -33,7 +25,7 @@ class HealthInsuranceFormService:
         if not agent.get('plan_id') or agent.get('agent_pdf_generated', 0) >= agent.get('agent_pdf_limit', 0):
             return None, "Agent has reached PDF generation limit"
         
-        # Create form link
+        # Create form link with default single use
         link_data = {
             'token': FormLink.generate_token(),
             'form_type': 'health_insurance',
@@ -46,7 +38,7 @@ class HealthInsuranceFormService:
             'expires_at': datetime.utcnow() + timedelta(days=expires_days) if expires_days else None,
             'is_active': True,
             'usage_count': 0,
-            'usage_limit': usage_limit
+            'usage_limit': usage_limit  # Default to 1 for single customer
         }
         
         result = self.form_links.insert_one(link_data)
@@ -55,8 +47,8 @@ class HealthInsuranceFormService:
         log_activity(
             agent_id,
             'FORM_LINK_CREATED',
-            f"Created health insurance form link",
-            {'link_id': str(result.inserted_id), 'language': language}
+            f"Created health insurance form link for {language} (usage limit: {usage_limit})",
+            {'link_id': str(result.inserted_id), 'language': language, 'usage_limit': usage_limit}
         )
         
         return str(result.inserted_id), link_data['token']
@@ -104,12 +96,19 @@ class HealthInsuranceFormService:
             {'$inc': {'usage_count': 1}}
         )
         
+        # If single use link, deactivate after first use
+        if link.usage_limit == 1:
+            self.form_links.update_one(
+                {'_id': link._id},
+                {'$set': {'is_active': False, 'deactivated_reason': 'Single use completed'}}
+            )
+        
         # Log activity
         log_activity(
             str(link.agent_id),
             'FORM_SUBMITTED',
-            f"Health insurance form submitted by {form_data.get('name')}",
-            {'form_id': str(result.inserted_id)}
+            f"Health insurance form submitted by {form_data.get('name')} (Language: {form_data.get('language')})",
+            {'form_id': str(result.inserted_id), 'language': form_data.get('language')}
         )
         
         return str(result.inserted_id), None
@@ -157,13 +156,13 @@ class HealthInsuranceFormService:
         
         self.form_links.update_one(
             {'_id': ObjectId(link_id)},
-            {'$set': {'is_active': new_status}}
+            {'$set': {'is_active': new_status, 'updated_at': datetime.utcnow()}}
         )
         
         return True
     
     def generate_pdf(self, form_id, agent_id):
-        """Generate PDF for health insurance form"""
+        """Generate PDF for health insurance form with language support"""
         form = self.get_form_by_id(form_id)
         if not form:
             return None, "Form not found"
@@ -183,22 +182,24 @@ class HealthInsuranceFormService:
         
         # Check if PDF already generated
         if form.pdf_generated and form.pdf_filename:
-            pdf_path = os.path.join('/root/generated_pdfs', form.pdf_filename)
+            pdf_path = os.path.join(os.getcwd(), 'static', 'generated_pdfs', form.pdf_filename)
             if os.path.exists(pdf_path):
                 return form.pdf_filename, None
         
         try:
-            # Check if PDF generator is available
-            if not PDF_GENERATOR_AVAILABLE or not self.pdf_generator:
-                return None, "PDF generator not configured. Please contact administrator."
+            # Import PDF generator
+            from services.forms.pdf_generators.health_insurance_pdf_generator import HealthInsurancePDFGenerator
             
-            # Generate PDF using the PDF generator class
+            # Create PDF generator instance
+            pdf_generator = HealthInsurancePDFGenerator()
+            
+            # Generate PDF with language support
             agent_info = {
                 'name': agent.get('full_name', 'Agent'),
                 'phone': agent.get('phone', '')
             }
             
-            pdf_filename = self.pdf_generator.generate_pdf(str(form_id), agent_info)
+            pdf_filename = pdf_generator.generate_pdf(str(form_id), agent_info, form.language)
             
             if pdf_filename:
                 # Update form with PDF info
@@ -231,8 +232,8 @@ class HealthInsuranceFormService:
                 log_activity(
                     agent_id,
                     'PDF_GENERATED',
-                    f"Generated health insurance PDF for {form.name}",
-                    {'form_id': form_id, 'pdf_filename': pdf_filename}
+                    f"Generated health insurance PDF for {form.name} in {form.language}",
+                    {'form_id': form_id, 'pdf_filename': pdf_filename, 'language': form.language}
                 )
                 
                 return pdf_filename, None

@@ -2,6 +2,8 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, send_file
 from flask_login import login_required, current_user
 from services.forms.health_insurance_service import HealthInsuranceFormService
+from services.translation_service import TranslationService
+from services.live_progress_service import progress_service
 from utils.decorators import login_required
 import os
 from datetime import timedelta, datetime
@@ -33,8 +35,27 @@ def index():
     service = HealthInsuranceFormService()
     result = service.get_agent_forms(current_user.id, page)
     
-    # The service already returns HealthInsuranceForm objects, no need to convert
     return render_template('forms/health_insurance/list.html', **result)
+
+@health_insurance_bp.route('/live-progress')
+@login_required
+def live_progress():
+    """Live progress tracking page for agents"""
+    if not current_user.is_agent():
+        flash('Only agents can access this page.', 'danger')
+        return redirect(url_for('dashboard.index'))
+    
+    return render_template('forms/health_insurance/live_progress.html')
+
+@health_insurance_bp.route('/api/active-forms')
+@login_required
+def api_active_forms():
+    """Get active forms for current agent"""
+    if not current_user.is_agent():
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    active_forms = progress_service.get_agent_active_forms(current_user.id)
+    return jsonify({'success': True, 'forms': active_forms})
 
 @health_insurance_bp.route('/links')
 @login_required
@@ -48,7 +69,6 @@ def links():
     service = HealthInsuranceFormService()
     result = service.get_form_links(current_user.id, page)
     
-    # The service already returns FormLink objects, no need to convert
     return render_template('forms/health_insurance/links.html', **result)
 
 @health_insurance_bp.route('/create-link', methods=['GET', 'POST'])
@@ -68,7 +88,12 @@ def create_link():
         language = request.form.get('language', 'en')
         expires_days = int(request.form.get('expires_days', 30))
         usage_limit = request.form.get('usage_limit')
-        usage_limit = int(usage_limit) if usage_limit else None
+        
+        # Default to 1 usage for single customer, allow override
+        if not usage_limit:
+            usage_limit = 1
+        else:
+            usage_limit = int(usage_limit)
         
         service = HealthInsuranceFormService()
         link_id, token = service.create_form_link(
@@ -94,7 +119,7 @@ def create_link():
 
 @health_insurance_bp.route('/form/<token>', methods=['GET', 'POST'])
 def public_form(token):
-    """Public form for customers to fill"""
+    """Public form for customers to fill - Dynamic translation"""
     service = HealthInsuranceFormService()
     link = service.get_form_link(token)
     
@@ -106,6 +131,12 @@ def public_form(token):
     is_valid, message = link.is_valid()
     if not is_valid:
         return render_template('forms/error.html', message=message), 400
+    
+    # Initialize translation service
+    translation_service = TranslationService()
+    
+    # Get form translations for the specified language
+    form_translations = translation_service.get_form_translations(link.language)
     
     if request.method == 'POST':
         form_data = {
@@ -127,15 +158,21 @@ def public_form(token):
         form_id, error = service.submit_form(form_data, token)
         
         if form_id:
+            # Mark form as completed in progress tracker
+            progress_service.complete_form_session(token)
+            
             return render_template('forms/health_insurance/success.html',
                                  form_id=form_id,
                                  agent_name=link.agent_name,
                                  agent_phone=link.agent_phone,
-                                 language=link.language)
+                                 translations=form_translations['success'])
         else:
             flash(error, 'danger')
     
-    # Cities list
+    # Start form session for progress tracking
+    progress_service.start_form_session(token, link.agent_id)
+    
+    # Cities list (will be translated)
     cities = [
         'Mumbai', 'Delhi', 'Bangalore', 'Hyderabad', 'Chennai', 'Kolkata',
         'Pune', 'Ahmedabad', 'Jaipur', 'Surat', 'Lucknow', 'Kanpur',
@@ -145,11 +182,52 @@ def public_form(token):
         'Others'
     ]
     
-    return render_template(f'forms/health_insurance/form_{link.language}.html',
+    # Translate cities if needed
+    if link.language != 'en':
+        translated_cities = []
+        for city in cities:
+            if city == 'Others':
+                translated_cities.append(translation_service.translate_text('Others', link.language))
+            else:
+                translated_cities.append(city)  # Keep city names in original
+        cities = translated_cities
+    
+    return render_template('forms/health_insurance/dynamic_form.html',
                          token=token,
                          cities=cities,
                          agent_name=link.agent_name,
-                         agent_phone=link.agent_phone)
+                         agent_phone=link.agent_phone,
+                         language=link.language,
+                         translations=form_translations)
+
+@health_insurance_bp.route('/api/translate', methods=['POST'])
+def api_translate():
+    """API endpoint for real-time translation"""
+    data = request.get_json()
+    text = data.get('text', '')
+    target_lang = data.get('target_lang', 'en')
+    
+    if not text:
+        return jsonify({'error': 'No text provided'}), 400
+    
+    translation_service = TranslationService()
+    translated_text = translation_service.translate_text(text, target_lang)
+    
+    return jsonify({
+        'success': True,
+        'original_text': text,
+        'translated_text': translated_text,
+        'target_language': target_lang
+    })
+
+@health_insurance_bp.route('/api/form-progress/<token>')
+def api_form_progress(token):
+    """Get current form progress"""
+    progress_data = progress_service.get_form_progress(token)
+    return jsonify({
+        'success': True,
+        'progress': progress_data
+    })
 
 @health_insurance_bp.route('/<form_id>/view')
 @login_required

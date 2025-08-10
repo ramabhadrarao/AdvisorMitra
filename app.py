@@ -1,10 +1,11 @@
 # app.py
-# Main application file with enhanced routing for three-tier system
+# Main application file with enhanced routing for three-tier system and SocketIO
 
 import os
 from flask import Flask, render_template, redirect, url_for
 from flask_login import LoginManager, current_user
 from flask_mail import Mail
+from flask_socketio import SocketIO
 from config import config
 from models.user import User
 from models import get_users_collection
@@ -16,6 +17,7 @@ from services.auth_service import AuthService
 
 # Initialize Flask extensions
 mail = Mail()
+socketio = SocketIO()
 
 def create_app(config_name='default'):
     app = Flask(__name__)
@@ -23,6 +25,9 @@ def create_app(config_name='default'):
     
     # Initialize Flask-Mail
     mail.init_app(app)
+    
+    # Initialize SocketIO
+    socketio.init_app(app, cors_allowed_origins="*", async_mode='eventlet')
     
     # Create upload directories
     os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
@@ -111,6 +116,10 @@ def create_app(config_name='default'):
     def inject_user():
         return dict(current_user=current_user, datetime=datetime)
     
+    # Register SocketIO events
+    from services.live_progress_service import register_socketio_events
+    register_socketio_events(socketio)
+    
     with app.app_context():
         # Create initial super admin account
         auth_service = AuthService()
@@ -120,4 +129,4 @@ def create_app(config_name='default'):
 
 if __name__ == '__main__':
     app = create_app(os.getenv('FLASK_ENV', 'development'))
-    app.run(debug=True, host='0.0.0.0', port=5006)
+    socketio.run(app, debug=True, host='0.0.0.0', port=5006)

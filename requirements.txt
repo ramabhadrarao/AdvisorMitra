@@ -10,4 +10,9 @@ Pillow==10.2.0
 pymongo==4.6.1
 email-validator==2.1.0.post1
 Flask-Mail==0.9.1
+flask-socketio==5.3.6
+googletrans==4.0.0rc1
+redis==5.0.1
+eventlet==0.33.3
+reportlab==4.0.8
 #python 3.10

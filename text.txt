@@ -54,3 +54,13 @@ COUPONS:
   PARTNER30 - 30% partner special
   EXPIRED10 - Expired coupon
 ==================================================
+
+
+
+
+
+
+sudo apt update
+sudo apt install redis-server
+sudo systemctl start redis-server
+sudo systemctl enable redis-server

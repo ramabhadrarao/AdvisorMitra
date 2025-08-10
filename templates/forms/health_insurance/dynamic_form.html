@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="{{ language }}">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+    <meta http-equiv="X-UA-Compatible" content="ie=edge"/>
+    <title>{{ translations.title }}</title>
+    <link href="https://unpkg.com/@tabler/core@latest/dist/css/tabler.min.css" rel="stylesheet"/>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.4/socket.io.js"></script>
+    <style>
+        body {
+            background-color: #f4f6fa;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        }
+        .form-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .agent-info {
+            background-color: #206bc4;
+            color: white;
+            padding: 20px;
+            border-radius: 10px 10px 0 0;
+            text-align: center;
+        }
+        .form-card {
+            border-radius: 0 0 10px 10px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        }
+        .required::after {
+            content: " *";
+            color: #d63939;
+        }
+        .progress-bar {
+            height: 8px;
+            background-color: #e9ecef;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #206bc4, #28a745);
+            width: 0%;
+            transition: width 0.5s ease;
+        }
+        .field-completed {
+            border-left: 3px solid #28a745;
+            background-color: #f8fff9;
+        }
+        .connection-status {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            z-index: 1000;
+        }
+        .connected {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .disconnected {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+    </style>
+</head>
+<body>
+    <!-- Connection Status -->
+    <div id="connectionStatus" class="connection-status disconnected">
+        Connecting...
+    </div>
+
+    <div class="form-container">
+        <div class="agent-info">
+            <h2>{{ translations.title }}</h2>
+            <p class="mb-0">{{ translations.advisor_title if translations.success else 'Your Financial Advisor' }}: <strong>{{ agent_name }}</strong></p>
+            {% if agent_phone %}
+            <p class="mb-0">{{ translations.fields.mobile if translations.fields else 'Contact' }}: <strong>{{ agent_phone }}</strong></p>
+            {% endif %}
+        </div>
+        
+        <form method="post" class="card form-card" id="healthForm">
+            <div class="card-body">
+                <!-- Progress Bar -->
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill"></div>
+                </div>
+                <div class="text-center mb-3">
+                    <small class="text-muted" id="progressText">0% Complete</small>
+                </div>
+                
+                <div class="mb-4">
+                    <h3 class="card-title">{{ translations.subtitle }}</h3>
+                    <p class="text-muted">{{ translations.mandatory_note }}</p>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label required">{{ translations.fields.name }}</label>
+                        <input type="text" name="name" class="form-control" required 
+                               data-field="name">
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label required">{{ translations.fields.email }}</label>
+                        <input type="email" name="email" class="form-control" required
+                               data-field="email">
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label required">{{ translations.fields.mobile }}</label>
+                        <input type="tel" name="mobile" class="form-control" pattern="[0-9]{10}" required
+                               data-field="mobile">
+                        <small class="form-hint">{{ translations.fields.mobile_hint }}</small>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label required">{{ translations.fields.city_of_residence }}</label>
+                        <select name="city_of_residence" class="form-select" required
+                                data-field="city_of_residence">
+                            <option value="">{{ translations.options.select_city }}</option>
+                            {% for city in cities %}
+                            <option value="{{ city }}">{{ city }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label required">{{ translations.fields.age }}</label>
+                        <input type="number" name="age" class="form-control" min="18" max="100" required
+                               data-field="age">
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label required">{{ translations.fields.number_of_members }}</label>
+                        <input type="number" name="number_of_members" class="form-control" min="1" max="10" value="1" required
+                               data-field="number_of_members">
+                        <small class="form-hint">{{ translations.fields.number_of_members_hint }}</small>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label required">{{ translations.fields.eldest_member_age }}</label>
+                    <input type="number" name="eldest_member_age" class="form-control" min="18" max="100" required
+                           data-field="eldest_member_age">
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label required">{{ translations.fields.pre_existing_diseases }}</label>
+                        <select name="pre_existing_diseases" class="form-select" required
+                                data-field="pre_existing_diseases">
+                            <option value="">{{ translations.options.select }}</option>
+                            <option value="Yes">{{ translations.options.yes }}</option>
+                            <option value="No">{{ translations.options.no }}</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label required">{{ translations.fields.major_surgery }}</label>
+                        <select name="major_surgery" class="form-select" required
+                                data-field="major_surgery">
+                            <option value="">{{ translations.options.select }}</option>
+                            <option value="Yes">{{ translations.options.yes }}</option>
+                            <option value="No">{{ translations.options.no }}</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label required">{{ translations.fields.existing_insurance }}</label>
+                    <select name="existing_insurance" class="form-select" required 
+                            data-field="existing_insurance" onchange="toggleInsuranceFields(this.value)">
+                        <option value="">{{ translations.options.select }}</option>
+                        <option value="Yes">{{ translations.options.yes }}</option>
+                        <option value="No">{{ translations.options.no }}</option>
+                    </select>
+                </div>
+                
+                <div id="insurance-details" style="display: none;">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">{{ translations.fields.current_coverage }}</label>
+                            <input type="number" name="current_coverage" class="form-control" min="0" step="50000" value="0"
+                                   data-field="current_coverage">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">{{ translations.fields.port_policy }}</label>
+                            <select name="port_policy" class="form-select"
+                                    data-field="port_policy">
+                                <option value="No">{{ translations.options.no }}</option>
+                                <option value="Yes">{{ translations.options.yes }}</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="alert alert-info">
+                    <h4 class="alert-title">{{ translations.privacy_title }}</h4>
+                    <div class="text-muted">{{ translations.privacy_text }}</div>
+                </div>
+            </div>
+            
+            <div class="card-footer text-end">
+                <button type="submit" class="btn btn-primary">{{ translations.fields.submit_button }}</button>
+            </div>
+        </form>
+    </div>
+    
+    <script src="https://unpkg.com/@tabler/core@latest/dist/js/tabler.min.js"></script>
+    <script>
+        // SocketIO connection for live progress
+        const socket = io();
+        const token = "{{ token }}";
+        let completedFields = new Set();
+        const totalFields = 12; // Total required fields
+        let isConnected = false;
+        
+        console.log('🚀 Initializing form with token:', token);
+        
+        // Connection handlers
+        socket.on('connect', function() {
+            console.log('✅ Connected to server');
+            isConnected = true;
+            updateConnectionStatus(true);
+            
+            // Send initial form started event
+            socket.emit('form_field_update', {
+                token: token,
+                field_name: 'form_started',
+                field_value: 'true'
+            });
+        });
+        
+        socket.on('disconnect', function() {
+            console.log('❌ Disconnected from server');
+            isConnected = false;
+            updateConnectionStatus(false);
+        });
+        
+        socket.on('error', function(error) {
+            console.error('❌ Socket error:', error);
+        });
+        
+        function updateConnectionStatus(connected) {
+            const statusEl = document.getElementById('connectionStatus');
+            if (connected) {
+                statusEl.className = 'connection-status connected';
+                statusEl.textContent = '🟢 Live tracking active';
+            } else {
+                statusEl.className = 'connection-status disconnected';
+                statusEl.textContent = '🔴 Disconnected';
+            }
+        }
+        
+        function updateProgress(element) {
+            const fieldName = element.dataset.field;
+            const fieldValue = element.value;
+            
+            console.log('📝 Field updated:', fieldName, '=', fieldValue);
+            
+            if (fieldValue && fieldValue.trim() !== '') {
+                completedFields.add(fieldName);
+                element.classList.add('field-completed');
+            } else {
+                completedFields.delete(fieldName);
+                element.classList.remove('field-completed');
+            }
+            
+            // Calculate progress
+            const percentage = Math.min(100, (completedFields.size / totalFields) * 100);
+            
+            // Update progress bar
+            document.getElementById('progressFill').style.width = percentage + '%';
+            document.getElementById('progressText').textContent = Math.round(percentage) + '% Complete';
+            
+            // Send progress to agent via SocketIO
+            if (isConnected) {
+                socket.emit('form_field_update', {
+                    token: token,
+                    field_name: fieldName,
+                    field_value: fieldValue,
+                    progress_percentage: percentage,
+                    completed_fields_count: completedFields.size,
+                    total_fields: totalFields
+                });
+                console.log('📡 Progress sent to agent:', percentage + '%');
+            } else {
+                console.log('⚠️ Not connected - progress not sent');
+            }
+        }
+        
+        function toggleInsuranceFields(value) {
+            const detailsDiv = document.getElementById('insurance-details');
+            if (value === 'Yes') {
+                detailsDiv.style.display = 'block';
+                document.querySelector('input[name="current_coverage"]').required = false; // Optional field
+                document.querySelector('select[name="port_policy"]').required = false; // Optional field
+            } else {
+                detailsDiv.style.display = 'none';
+                document.querySelector('input[name="current_coverage"]').required = false;
+                document.querySelector('select[name="port_policy"]').required = false;
+            }
+            
+            // Update progress for the insurance selection
+            updateProgress(document.querySelector('select[name="existing_insurance"]'));
+        }
+        
+        // Add event listeners to all form fields
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🎯 Setting up form field listeners');
+            
+            const formElements = document.querySelectorAll('[data-field]');
+            console.log('📋 Found', formElements.length, 'form fields');
+            
+            formElements.forEach((element, index) => {
+                console.log(`📝 Setting up field ${index + 1}:`, element.dataset.field);
+                
+                element.addEventListener('input', function() {
+                    updateProgress(this);
+                });
+                
+                element.addEventListener('change', function() {
+                    updateProgress(this);
+                });
+                
+                // Check for existing values on page load
+                if (element.value && element.value.trim() !== '') {
+                    updateProgress(element);
+                }
+            });
+            
+            console.log('✅ Form field listeners set up complete');
+        });
+        
+        // Form submission
+        document.getElementById('healthForm').addEventListener('submit', function(e) {
+            console.log('📤 Form being submitted');
+            
+            if (isConnected) {
+                socket.emit('form_field_update', {
+                    token: token,
+                    field_name: 'form_submitted',
+                    field_value: 'true',
+                    progress_percentage: 100
+                });
+            }
+        });
+        
+        // Debug: Log socket events
+        socket.onAny((event, ...args) => {
+            console.log('🔍 Socket event:', event, args);
+        });
+    </script>
+</body>
+</html>

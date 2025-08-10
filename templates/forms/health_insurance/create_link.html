@@ -29,10 +29,10 @@
                             <label class="form-label required">Form Language</label>
                             <select name="language" class="form-select" required>
                                 {% for code, name in languages.items() %}
-                                <option value="{{ code }}" {% if code == 'en' %}selected{% endif %}>{{ name }}</option>
+                                <option value="{{ code }}" {{ 'selected' if code == 'en' else '' }}>{{ name }}</option>
                                 {% endfor %}
                             </select>
-                            <small class="form-hint">Select the language for the form</small>
+                            <small class="form-hint">Form will be dynamically translated using Google Translate</small>
                         </div>
                         
                         <div class="mb-3">
@@ -43,23 +43,42 @@
                         
                         <div class="mb-3">
                             <label class="form-label">Usage Limit</label>
-                            <input type="number" name="usage_limit" class="form-control" min="1">
-                            <small class="form-hint">Leave empty for unlimited usage</small>
+                            <input type="number" name="usage_limit" class="form-control" value="1" min="1">
+                            <small class="form-hint">Default: 1 customer per link. Set higher for multiple customers.</small>
                         </div>
                         
                         <div class="alert alert-info">
+                            <h4 class="alert-title">🚀 New Features</h4>
+                            <ul class="mb-0">
+                                <li><strong>Live Progress Tracking:</strong> Watch customers fill forms in real-time</li>
+                                <li><strong>Single Customer Default:</strong> Each link is for one customer by default</li>
+                                <li><strong>Multi-language Support:</strong> Forms automatically translate to selected language</li>
+                                <li><strong>Smart PDF Generation:</strong> PDFs generated in customer's chosen language</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="alert alert-success">
                             <h4 class="alert-title">How it works</h4>
                             <ul class="mb-0">
-                                <li>A unique link will be generated for your customers</li>
-                                <li>Share this link via WhatsApp, Email, or any messaging platform</li>
-                                <li>Customers can fill the form in their preferred language</li>
-                                <li>You'll receive the data and can generate PDF reports</li>
+                                <li>Create a unique link for your customers</li>
+                                <li>Form will display in the selected language automatically</li>
+                                <li>Track form progress live from your dashboard</li>
+                                <li>Generate PDF reports in customer's language</li>
+                                <li>Share via WhatsApp, Email, or any messaging platform</li>
                             </ul>
                         </div>
                     </div>
-                    <div class="card-footer text-end">
-                        <a href="{{ url_for('health_insurance.index') }}" class="btn btn-link">Cancel</a>
-                        <button type="submit" class="btn btn-primary">Create Link</button>
+                    <div class="card-footer d-flex justify-content-between">
+                        <div>
+                            <a href="{{ url_for('health_insurance.live_progress') }}" class="btn btn-info">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M3 12h4l3 8l4 -16l3 8h4" /></svg>
+                                Live Progress
+                            </a>
+                        </div>
+                        <div>
+                            <a href="{{ url_for('health_insurance.index') }}" class="btn btn-link">Cancel</a>
+                            <button type="submit" class="btn btn-primary">Create Link</button>
+                        </div>
                     </div>
                 </form>
             </div>

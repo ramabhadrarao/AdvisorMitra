@@ -12,6 +12,7 @@ from pymongo import MongoClient
 from bson import ObjectId
 from flask import current_app
 import pytz
+from services.translation_service import TranslationService
 
 class NumberedCanvas(canvas.Canvas):
     def __init__(self, *args, **kwargs):
@@ -61,6 +62,7 @@ class HealthInsurancePDFGenerator:
     def __init__(self):
         self.output_folder = os.path.join(os.getcwd(), 'static', 'generated_pdfs')
         self._ensure_output_folder()
+        self.translation_service = TranslationService()
         
         # Professional color scheme
         self.colors = {
@@ -174,7 +176,8 @@ class HealthInsurancePDFGenerator:
                     'current_coverage': form.get('current_coverage', 0),
                     'port_policy': form.get('port_policy', 'No'),
                     'form_timestamp': form.get('created_at'),
-                    'tier_city': form.get('tier_city', 'Others')
+                    'tier_city': form.get('tier_city', 'Others'),
+                    'language': form.get('language', 'en')
                 }
             return None
         except Exception as e:
@@ -213,12 +216,56 @@ class HealthInsurancePDFGenerator:
         except Exception as e:
             print(f"Database error: {e}")
             return 1000000
+    
+    def _get_translated_content(self, language):
+        """Get translated content for PDF"""
+        content = {
+            'title': 'HEALTH INSURANCE REQUIREMENT ANALYSIS',
+            'subtitle': 'Comprehensive Coverage Assessment Report',
+            'customer_info': 'CUSTOMER INFORMATION',
+            'recommendation': 'RECOMMENDED HEALTH INSURANCE COVERAGE',
+            'advisor': 'YOUR FINANCIAL ADVISOR',
+            'report_generated': 'REPORT GENERATED',
+            'confidential': 'Confidential Document',
+            'specialist': 'Financial Planning Specialist',
+            'fields': {
+                'full_name': 'Full Name',
+                'email': 'Email Address',
+                'mobile': 'Mobile Number',
+                'age': 'Age',
+                'city': 'City of Residence',
+                'family_members': 'Family Members',
+                'eldest_age': 'Eldest Member Age',
+                'pre_existing': 'Pre-existing Diseases',
+                'surgery': 'Major Surgery History',
+                'existing_insurance': 'Existing Health Insurance',
+                'current_coverage': 'Current Coverage Amount',
+                'port_policy': 'Port Existing Policy'
+            },
+            'values': {
+                'years': 'Years',
+                'members': 'Members'
+            }
+        }
+        
+        if language != 'en':
+            # Translate all content
+            for key, value in content.items():
+                if isinstance(value, str):
+                    content[key] = self.translation_service.translate_text(value, language)
+                elif isinstance(value, dict):
+                    for sub_key, sub_value in value.items():
+                        content[key][sub_key] = self.translation_service.translate_text(sub_value, language)
+        
+        return content
 
-    def _create_header(self):
-        """Create document header"""
+    def _create_header(self, language='en'):
+        """Create document header with translation"""
+        translated_content = self._get_translated_content(language)
+        
         header_data = [
-            ['HEALTH INSURANCE REQUIREMENT ANALYSIS'],
-            ['Comprehensive Coverage Assessment Report']
+            [translated_content['title']],
+            [translated_content['subtitle']]
         ]
         
         header_table = Table(header_data, colWidths=[16*cm])
@@ -246,10 +293,12 @@ class HealthInsurancePDFGenerator:
         
         return header_table
 
-    def _create_customer_details(self, user_data):
-        """Create customer details section"""
+    def _create_customer_details(self, user_data, language='en'):
+        """Create customer details section with translation"""
+        translated_content = self._get_translated_content(language)
+        
         # Section header
-        section_header = Table([['CUSTOMER INFORMATION']], colWidths=[16*cm])
+        section_header = Table([[translated_content['customer_info']]], colWidths=[16*cm])
         section_header.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, -1), self.colors['primary']),
             ('TEXTCOLOR', (0, 0), (-1, -1), self.colors['white']),
@@ -265,18 +314,18 @@ class HealthInsurancePDFGenerator:
         # Details table
         details_data = [
             ['FIELD', 'DETAILS'],
-            ['Full Name', user_data.get('name', 'N/A').title()],
-            ['Email Address', self._mask_email(user_data.get('email', 'N/A'))],
-            ['Mobile Number', self._mask_mobile(user_data.get('mobile', 'N/A'))],
-            ['Age', f"{user_data.get('age', 'N/A')} Years"],
-            ['City of Residence', f"{user_data.get('city_of_residence', 'N/A').title()} ({user_data.get('tier_city', 'N/A')})"],
-            ['Family Members', f"{user_data.get('number_of_members', 'N/A')} Members"],
-            ['Eldest Member Age', f"{user_data.get('eldest_member_age', 'N/A')} Years"],
-            ['Pre-existing Diseases', user_data.get('pre_existing_diseases', 'N/A').title()],
-            ['Major Surgery History', user_data.get('major_surgery', 'N/A').title()],
-            ['Existing Health Insurance', user_data.get('existing_insurance', 'N/A').title()],
-            ['Current Coverage Amount', self._format_currency(user_data.get('current_coverage', 0))],
-            ['Port Existing Policy', user_data.get('port_policy', 'N/A').title()]
+            [translated_content['fields']['full_name'], user_data.get('name', 'N/A').title()],
+            [translated_content['fields']['email'], self._mask_email(user_data.get('email', 'N/A'))],
+            [translated_content['fields']['mobile'], self._mask_mobile(user_data.get('mobile', 'N/A'))],
+            [translated_content['fields']['age'], f"{user_data.get('age', 'N/A')} {translated_content['values']['years']}"],
+            [translated_content['fields']['city'], f"{user_data.get('city_of_residence', 'N/A').title()} ({user_data.get('tier_city', 'N/A')})"],
+            [translated_content['fields']['family_members'], f"{user_data.get('number_of_members', 'N/A')} {translated_content['values']['members']}"],
+            [translated_content['fields']['eldest_age'], f"{user_data.get('eldest_member_age', 'N/A')} {translated_content['values']['years']}"],
+            [translated_content['fields']['pre_existing'], user_data.get('pre_existing_diseases', 'N/A').title()],
+            [translated_content['fields']['surgery'], user_data.get('major_surgery', 'N/A').title()],
+            [translated_content['fields']['existing_insurance'], user_data.get('existing_insurance', 'N/A').title()],
+            [translated_content['fields']['current_coverage'], self._format_currency(user_data.get('current_coverage', 0))],
+            [translated_content['fields']['port_policy'], user_data.get('port_policy', 'N/A').title()]
         ]
         
         details_table = Table(details_data, colWidths=[8*cm, 8*cm])
@@ -309,10 +358,12 @@ class HealthInsurancePDFGenerator:
         
         return [section_header, details_table]
 
-    def _create_recommendation(self, user_data, recommended_coverage):
-        """Create recommendation section"""
+    def _create_recommendation(self, user_data, recommended_coverage, language='en'):
+        """Create recommendation section with translation"""
+        translated_content = self._get_translated_content(language)
+        
         # Section header
-        section_header = Table([['RECOMMENDED HEALTH INSURANCE COVERAGE']], colWidths=[16*cm])
+        section_header = Table([[translated_content['recommendation']]], colWidths=[16*cm])
         section_header.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, -1), self.colors['success']),
             ('TEXTCOLOR', (0, 0), (-1, -1), self.colors['white']),
@@ -327,17 +378,23 @@ class HealthInsurancePDFGenerator:
         
         # Build recommendation content
         family_members = int(user_data.get('number_of_members', 1))
-        protection_text = "you and your family" if family_members > 1 else "yourself"
+        protection_text = self.translation_service.translate_text("you and your family" if family_members > 1 else "yourself", language)
         
         recommendation_content = []
         
         # Main recommendation
-        main_text = f"Based on your comprehensive profile analysis, we recommend a Health Insurance coverage of {self._format_currency(recommended_coverage)} to ensure adequate protection for {protection_text}."
+        main_text = self.translation_service.translate_text(
+            f"Based on your comprehensive profile analysis, we recommend a Health Insurance coverage of {self._format_currency(recommended_coverage)} to ensure adequate protection for {protection_text}.",
+            language
+        )
         recommendation_content.append([main_text])
         
         # Family size consideration
         if family_members > 1:
-            family_text = f"Family Size Consideration: This recommendation includes an adjustment for your family size of {family_members} members."
+            family_text = self.translation_service.translate_text(
+                f"Family Size Consideration: This recommendation includes an adjustment for your family size of {family_members} members.",
+                language
+            )
             recommendation_content.append([family_text])
         
         # Coverage analysis
@@ -346,15 +403,21 @@ class HealthInsurancePDFGenerator:
             
             if current_cov and current_cov > 0:
                 if current_cov >= recommended_coverage:
-                    coverage_text = f"Coverage Status: Your current coverage of {self._format_currency(current_cov)} appears adequate for your current needs."
-                    coverage_color = self.colors['success']
+                    coverage_text = self.translation_service.translate_text(
+                        f"Coverage Status: Your current coverage of {self._format_currency(current_cov)} appears adequate for your current needs.",
+                        language
+                    )
                 else:
                     gap = recommended_coverage - current_cov
-                    coverage_text = f"Coverage Gap Alert: Your current coverage of {self._format_currency(current_cov)} has a shortfall of {self._format_currency(gap)}. Consider increasing your coverage."
-                    coverage_color = self.colors['danger']
+                    coverage_text = self.translation_service.translate_text(
+                        f"Coverage Gap Alert: Your current coverage of {self._format_currency(current_cov)} has a shortfall of {self._format_currency(gap)}. Consider increasing your coverage.",
+                        language
+                    )
             else:
-                coverage_text = "Coverage Enhancement: You mentioned having existing insurance but no coverage amount was specified. Please review your current policy details."
-                coverage_color = self.colors['warning']
+                coverage_text = self.translation_service.translate_text(
+                    "Coverage Enhancement: You mentioned having existing insurance but no coverage amount was specified. Please review your current policy details.",
+                    language
+                )
             
             recommendation_content.append([coverage_text])
         
@@ -375,54 +438,37 @@ class HealthInsurancePDFGenerator:
         ]
         
         # Style each row
-        row = 0
-        # Main recommendation - bold and larger
-        table_style.extend([
-            ('FONTNAME', (0, row), (0, row), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, row), (0, row), 13),
-            ('TEXTCOLOR', (0, row), (0, row), self.colors['text_dark']),
-        ])
-        row += 1
-        
-        # Family size note - smaller and muted
-        if family_members > 1:
-            table_style.extend([
-                ('FONTSIZE', (0, row), (0, row), 10),
-                ('TEXTCOLOR', (0, row), (0, row), self.colors['text_muted']),
-            ])
-            row += 1
-        
-        # Coverage analysis - colored based on status
-        if user_data.get('existing_insurance', 'No').lower() == 'yes':
-            current_cov = user_data.get('current_coverage', 0)
-            if current_cov and current_cov >= recommended_coverage:
-                color = self.colors['success']
-            elif current_cov and current_cov > 0:
-                color = self.colors['danger']
-            else:
-                color = self.colors['warning']
-            
-            table_style.extend([
-                ('FONTSIZE', (0, row), (0, row), 11),
-                ('TEXTCOLOR', (0, row), (0, row), color),
-            ])
+        for i in range(len(recommendation_content)):
+            if i == 0:  # Main recommendation - bold and larger
+                table_style.extend([
+                    ('FONTNAME', (0, i), (0, i), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, i), (0, i), 13),
+                    ('TEXTCOLOR', (0, i), (0, i), self.colors['text_dark']),
+                ])
+            else:  # Other rows
+                table_style.extend([
+                    ('FONTSIZE', (0, i), (0, i), 11),
+                    ('TEXTCOLOR', (0, i), (0, i), self.colors['text_muted']),
+                ])
         
         recommendation_table.setStyle(TableStyle(table_style))
         
         return [section_header, recommendation_table]
 
-    def _create_footer(self, agent_info):
-        """Create footer with agent details"""
+    def _create_footer(self, agent_info, language='en'):
+        """Create footer with agent details and translation"""
+        translated_content = self._get_translated_content(language)
+        
         # Get timestamp
         ist = pytz.timezone('Asia/Kolkata')
         now_ist = datetime.now(ist)
         generated_time = now_ist.strftime("%d-%b-%Y %I:%M %p")
         
         footer_data = [
-            ['YOUR FINANCIAL ADVISOR', 'REPORT GENERATED'],
+            [translated_content['advisor'], translated_content['report_generated']],
             [f"{agent_info['name']}", f"{generated_time}"],
             [f"+91 {agent_info['phone']}", "AdvisorMitra"],
-            ['Financial Planning Specialist', 'Confidential Document']
+            [translated_content['specialist'], translated_content['confidential']]
         ]
         
         footer_table = Table(footer_data, colWidths=[8*cm, 8*cm])
@@ -451,18 +497,21 @@ class HealthInsurancePDFGenerator:
         
         return footer_table
 
-    def generate_pdf(self, form_id, agent_info):
-        """Generate PDF with enhanced LIC-style design"""
+    def generate_pdf(self, form_id, agent_info, language='en'):
+        """Generate PDF with multi-language support"""
         try:
             # Fetch data
             user_data = self._fetch_form_data(form_id)
             if not user_data:
                 raise Exception("Form data not found")
             
+            # Use the language from user data if available
+            pdf_language = user_data.get('language', language)
+            
             recommended_coverage = self._get_recommended_coverage(user_data)
             
             # Generate filename
-            pdf_filename = f"{user_data['name'].replace(' ', '_')}_Health_Insurance_Analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+            pdf_filename = f"{user_data['name'].replace(' ', '_')}_Health_Insurance_Analysis_{pdf_language}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
             pdf_path = os.path.join(self.output_folder, pdf_filename)
             
             # Create PDF document
@@ -480,21 +529,21 @@ class HealthInsurancePDFGenerator:
             elements = []
             
             # Add header
-            elements.append(self._create_header())
+            elements.append(self._create_header(pdf_language))
             elements.append(Spacer(1, 8*mm))
             
             # Add customer details
-            customer_sections = self._create_customer_details(user_data)
+            customer_sections = self._create_customer_details(user_data, pdf_language)
             elements.extend(customer_sections)
             elements.append(Spacer(1, 8*mm))
             
             # Add recommendation
-            recommendation_sections = self._create_recommendation(user_data, recommended_coverage)
+            recommendation_sections = self._create_recommendation(user_data, recommended_coverage, pdf_language)
             elements.extend(recommendation_sections)
             elements.append(Spacer(1, 10*mm))
             
             # Add footer
-            elements.append(self._create_footer(agent_info))
+            elements.append(self._create_footer(agent_info, pdf_language))
             
             # Build PDF
             doc.build(elements)

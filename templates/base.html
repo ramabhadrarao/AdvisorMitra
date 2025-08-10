@@ -1,5 +1,5 @@
 <!-- templates/base.html -->
-<!-- Base template with enhanced navigation for three-tier system -->
+<!-- Base template with enhanced navigation for three-tier system and SocketIO -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -146,6 +146,11 @@
                                     <a class="dropdown-item" href="{{ url_for('health_insurance.index') }}">
                                         Health Insurance
                                     </a>
+                                    <a class="dropdown-item" href="{{ url_for('health_insurance.live_progress') }}">
+                                        <span class="badge bg-success me-2">LIVE</span>
+                                        Form Progress
+                                    </a>
+                                    <div class="dropdown-divider"></div>
                                     <a class="dropdown-item disabled" href="#">
                                         Term Insurance <span class="badge bg-secondary ms-auto">Coming Soon</span>
                                     </a>
@@ -195,6 +200,11 @@
     <!-- Libs JS -->
     <script src="https://unpkg.com/@tabler/core@latest/dist/js/tabler.min.js"></script>
     <script src="https://unpkg.com/@tabler/core@latest/dist/js/demo.min.js"></script>
+    
+    <!-- SocketIO for real-time features -->
+    {% if current_user.is_authenticated and current_user.is_agent() %}
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.4/socket.io.js"></script>
+    {% endif %}
     
     <!-- Load pending count for admins -->
     {% if current_user.is_authenticated and (current_user.is_super_admin() or current_user.is_partner()) %}

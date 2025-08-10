@@ -11,6 +11,9 @@ class Config:
     # MongoDB Config
     MONGO_URI = os.environ.get('MONGO_URI') or 'mongodb://localhost:27017/financial_planning'
     
+    # Redis Config
+    REDIS_URL = os.environ.get('REDIS_URL') or 'redis://localhost:6379/0'
+    
     # Upload Config
     UPLOAD_FOLDER = 'static/uploads'
     PROFILE_UPLOAD_FOLDER = 'static/uploads/profiles'
@@ -37,6 +40,9 @@ class Config:
     MAIL_USERNAME = os.environ.get('MAIL_USERNAME')
     MAIL_PASSWORD = os.environ.get('MAIL_PASSWORD')
     MAIL_DEFAULT_SENDER = os.environ.get('MAIL_DEFAULT_SENDER')
+    
+    # Google Translate Config
+    GOOGLE_TRANSLATE_ENABLED = True
     
 class DevelopmentConfig(Config):
     DEBUG = True
