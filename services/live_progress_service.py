@@ -1,5 +1,5 @@
 # services/live_progress_service.py
-# Live form progress tracking service - FIXED
+# Live form progress tracking service - FIXED for Flask context
 
 import redis
 import json
@@ -13,16 +13,31 @@ class LiveProgressService:
     def __init__(self):
         self.redis_client = None
         self.logger = logging.getLogger(__name__)
-        
-        # Initialize Redis connection
+        self._initialized = False
+    
+    def _init_redis(self):
+        """Initialize Redis connection with proper Flask context"""
+        if self._initialized:
+            return
+            
         try:
-            self.redis_client = redis.from_url(current_app.config.get('REDIS_URL', 'redis://localhost:6379/0'))
-            self.redis_client.ping()
-            print("✅ Redis connected successfully")
+            # Only initialize if we have an application context
+            if current_app:
+                redis_url = current_app.config.get('REDIS_URL', 'redis://localhost:6379/0')
+                self.redis_client = redis.from_url(redis_url)
+                self.redis_client.ping()
+                print("✅ Redis connected successfully")
+                self._initialized = True
         except Exception as e:
             self.logger.warning(f"Redis connection failed: {e}. Live progress will not work.")
             print(f"❌ Redis connection failed: {e}")
             self.redis_client = None
+    
+    def _ensure_redis(self):
+        """Ensure Redis is initialized before use"""
+        if not self._initialized:
+            self._init_redis()
+        return self.redis_client is not None
     
     def get_progress_key(self, token):
         """Generate Redis key for form progress"""
@@ -30,7 +45,7 @@ class LiveProgressService:
     
     def update_form_progress(self, token, field_name, field_value, total_fields=13):
         """Update form progress in Redis"""
-        if not self.redis_client:
+        if not self._ensure_redis():
             print("❌ Redis not available for progress update")
             return None
         
@@ -81,7 +96,7 @@ class LiveProgressService:
     
     def get_form_progress(self, token):
         """Get current form progress"""
-        if not self.redis_client:
+        if not self._ensure_redis():
             return None
         
         try:
@@ -98,12 +113,23 @@ class LiveProgressService:
     
     def start_form_session(self, token, agent_id):
         """Initialize form progress tracking"""
-        if not self.redis_client:
+        if not self._ensure_redis():
             print("❌ Redis not available for starting session")
             return
         
         try:
             progress_key = self.get_progress_key(token)
+            
+            # Check if session already exists
+            existing_data = self.redis_client.get(progress_key)
+            if existing_data:
+                progress_data = json.loads(existing_data)
+                # Update agent_id if not set
+                if not progress_data.get('agent_id'):
+                    progress_data['agent_id'] = str(agent_id)
+                    self.redis_client.setex(progress_key, 7200, json.dumps(progress_data))
+                    print(f"✅ Updated existing session with agent_id: {agent_id}")
+                return
             
             initial_data = {
                 'completed_fields': {},
@@ -118,15 +144,39 @@ class LiveProgressService:
             
             # Store for 2 hours
             self.redis_client.setex(progress_key, 7200, json.dumps(initial_data))
-            print(f"✅ Form session started for token: {token}")
+            print(f"✅ Form session started for token: {token} with agent_id: {agent_id}")
             
         except Exception as e:
             self.logger.error(f"Error starting form session: {e}")
             print(f"❌ Error starting session: {e}")
+            
+    def ensure_agent_id_in_progress(self, token, agent_id):
+        """Ensure agent_id is set in existing progress data"""
+        if not self._ensure_redis():
+            return False
+            
+        try:
+            progress_key = self.get_progress_key(token)
+            existing_data = self.redis_client.get(progress_key)
+            
+            if existing_data:
+                progress_data = json.loads(existing_data)
+                if not progress_data.get('agent_id'):
+                    progress_data['agent_id'] = str(agent_id)
+                    progress_data['last_update'] = self._get_current_timestamp()
+                    self.redis_client.setex(progress_key, 7200, json.dumps(progress_data))
+                    print(f"✅ Added agent_id {agent_id} to existing progress for token: {token}")
+                    return True
+            
+            return False
+            
+        except Exception as e:
+            self.logger.error(f"Error ensuring agent_id: {e}")
+            return False
     
     def complete_form_session(self, token):
         """Mark form as completed"""
-        if not self.redis_client:
+        if not self._ensure_redis():
             return
         
         try:
@@ -147,7 +197,7 @@ class LiveProgressService:
     
     def get_agent_active_forms(self, agent_id):
         """Get all active forms for an agent"""
-        if not self.redis_client:
+        if not self._ensure_redis():
             return []
         
         try:
@@ -179,7 +229,7 @@ class LiveProgressService:
         """Get current timestamp"""
         return datetime.utcnow().isoformat()
 
-# Global service instance
+# Global service instance - initialize without Redis
 progress_service = LiveProgressService()
 
 def register_socketio_events(socketio):
@@ -188,6 +238,8 @@ def register_socketio_events(socketio):
     @socketio.on('connect')
     def handle_connect():
         print(f"🔌 Client connected: {current_user.username if current_user.is_authenticated else 'Anonymous'}")
+        # Initialize Redis here when we have a proper Flask context
+        progress_service._init_redis()
     
     @socketio.on('disconnect')
     def handle_disconnect():
@@ -242,7 +294,35 @@ def register_socketio_events(socketio):
                 
                 print(f"📡 Progress update sent to room: {agent_room}")
             else:
-                print(f"❌ No agent_id found in progress data or update failed")
+                # Try to get agent_id from form link if not in progress data
+                print(f"⚠️ No agent_id in progress data, trying to find from form link...")
+                try:
+                    from models.forms import get_form_links_collection
+                    form_links = get_form_links_collection()
+                    link_data = form_links.find_one({'token': token})
+                    
+                    if link_data and link_data.get('agent_id'):
+                        agent_id = str(link_data['agent_id'])
+                        print(f"✅ Found agent_id from form link: {agent_id}")
+                        
+                        # Update the progress data with agent_id
+                        if progress_service.ensure_agent_id_in_progress(token, agent_id):
+                            # Get updated progress data
+                            updated_progress = progress_service.get_form_progress(token)
+                            if updated_progress:
+                                agent_room = f"agent_{agent_id}"
+                                socketio.emit('progress_update', {
+                                    'token': token,
+                                    'field_name': field_name,
+                                    'field_value': field_value,
+                                    'progress_data': updated_progress,
+                                    'timestamp': updated_progress.get('last_update')
+                                }, room=agent_room)
+                                print(f"📡 Progress update sent to room: {agent_room} (after adding agent_id)")
+                    else:
+                        print(f"❌ Could not find agent_id for token: {token}")
+                except Exception as e:
+                    print(f"❌ Error finding agent_id: {e}")
         else:
             print(f"❌ Missing token or field_name in form update")
     

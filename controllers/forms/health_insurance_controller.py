@@ -1,4 +1,6 @@
 # controllers/forms/health_insurance_controller.py
+# FIXED - Properly handle agent_id in form sessions
+
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, send_file
 from flask_login import login_required, current_user
 from services.forms.health_insurance_service import HealthInsuranceFormService
@@ -169,8 +171,24 @@ def public_form(token):
         else:
             flash(error, 'danger')
     
-    # Start form session for progress tracking
-    progress_service.start_form_session(token, link.agent_id)
+    # Start form session for progress tracking with correct agent_id
+    agent_id = str(link.agent_id) if hasattr(link, 'agent_id') and link.agent_id else None
+    if agent_id:
+        progress_service.start_form_session(token, agent_id)
+        print(f"🎯 Started form session for token: {token} with agent_id: {agent_id}")
+    else:
+        print(f"⚠️ No agent_id found in link for token: {token}")
+        # Try to get agent_id from link data directly
+        try:
+            from models.forms import get_form_links_collection
+            form_links = get_form_links_collection()
+            link_data = form_links.find_one({'token': token})
+            if link_data and link_data.get('agent_id'):
+                agent_id = str(link_data['agent_id'])
+                progress_service.start_form_session(token, agent_id)
+                print(f"🎯 Started form session from DB lookup for token: {token} with agent_id: {agent_id}")
+        except Exception as e:
+            print(f"❌ Error getting agent_id from DB: {e}")
     
     # Cities list (will be translated)
     cities = [

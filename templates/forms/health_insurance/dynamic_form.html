@@ -68,12 +68,29 @@
             color: #721c24;
             border: 1px solid #f5c6cb;
         }
+        .typing-indicator {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #28a745;
+            color: white;
+            padding: 10px 15px;
+            border-radius: 20px;
+            font-size: 12px;
+            display: none;
+            z-index: 1000;
+        }
     </style>
 </head>
 <body>
     <!-- Connection Status -->
     <div id="connectionStatus" class="connection-status disconnected">
         Connecting...
+    </div>
+
+    <!-- Typing Indicator -->
+    <div id="typingIndicator" class="typing-indicator">
+        📝 Sending updates to your advisor...
     </div>
 
     <div class="form-container">
@@ -222,6 +239,11 @@
         const totalFields = 12; // Total required fields
         let isConnected = false;
         
+        // Debouncing variables
+        let updateQueue = new Map(); // Store pending updates
+        let updateTimer = null;
+        let typingTimer = null;
+        
         console.log('🚀 Initializing form with token:', token);
         
         // Connection handlers
@@ -231,11 +253,7 @@
             updateConnectionStatus(true);
             
             // Send initial form started event
-            socket.emit('form_field_update', {
-                token: token,
-                field_name: 'form_started',
-                field_value: 'true'
-            });
+            sendUpdate('form_started', 'true');
         });
         
         socket.on('disconnect', function() {
@@ -259,12 +277,63 @@
             }
         }
         
+        function showTypingIndicator() {
+            const indicator = document.getElementById('typingIndicator');
+            indicator.style.display = 'block';
+            
+            // Hide after 2 seconds
+            clearTimeout(typingTimer);
+            typingTimer = setTimeout(() => {
+                indicator.style.display = 'none';
+            }, 2000);
+        }
+        
+        function sendUpdate(fieldName, fieldValue) {
+            if (isConnected) {
+                socket.emit('form_field_update', {
+                    token: token,
+                    field_name: fieldName,
+                    field_value: fieldValue,
+                    progress_percentage: Math.min(100, (completedFields.size / totalFields) * 100),
+                    completed_fields_count: completedFields.size,
+                    total_fields: totalFields
+                });
+                console.log('📡 Update sent:', fieldName, '=', fieldValue);
+            }
+        }
+        
+        function queueUpdate(fieldName, fieldValue) {
+            // Add to queue
+            updateQueue.set(fieldName, fieldValue);
+            
+            // Show typing indicator
+            showTypingIndicator();
+            
+            // Clear existing timer
+            if (updateTimer) {
+                clearTimeout(updateTimer);
+            }
+            
+            // Set new timer to send updates after 500ms of no activity
+            updateTimer = setTimeout(() => {
+                // Send all queued updates
+                for (const [field, value] of updateQueue) {
+                    sendUpdate(field, value);
+                }
+                
+                // Clear queue
+                updateQueue.clear();
+                updateTimer = null;
+            }, 500);
+        }
+        
         function updateProgress(element) {
             const fieldName = element.dataset.field;
             const fieldValue = element.value;
             
             console.log('📝 Field updated:', fieldName, '=', fieldValue);
             
+            // Update local progress immediately
             if (fieldValue && fieldValue.trim() !== '') {
                 completedFields.add(fieldName);
                 element.classList.add('field-completed');
@@ -276,24 +345,12 @@
             // Calculate progress
             const percentage = Math.min(100, (completedFields.size / totalFields) * 100);
             
-            // Update progress bar
+            // Update progress bar immediately
             document.getElementById('progressFill').style.width = percentage + '%';
             document.getElementById('progressText').textContent = Math.round(percentage) + '% Complete';
             
-            // Send progress to agent via SocketIO
-            if (isConnected) {
-                socket.emit('form_field_update', {
-                    token: token,
-                    field_name: fieldName,
-                    field_value: fieldValue,
-                    progress_percentage: percentage,
-                    completed_fields_count: completedFields.size,
-                    total_fields: totalFields
-                });
-                console.log('📡 Progress sent to agent:', percentage + '%');
-            } else {
-                console.log('⚠️ Not connected - progress not sent');
-            }
+            // Queue the update to send to server (debounced)
+            queueUpdate(fieldName, fieldValue);
         }
         
         function toggleInsuranceFields(value) {
@@ -322,12 +379,23 @@
             formElements.forEach((element, index) => {
                 console.log(`📝 Setting up field ${index + 1}:`, element.dataset.field);
                 
-                element.addEventListener('input', function() {
+                // For text inputs - use input event with debouncing
+                if (element.type === 'text' || element.type === 'email' || element.type === 'tel' || element.type === 'number') {
+                    element.addEventListener('input', function() {
+                        updateProgress(this);
+                    });
+                }
+                
+                // For selects and immediate changes - use change event
+                element.addEventListener('change', function() {
                     updateProgress(this);
                 });
                 
-                element.addEventListener('change', function() {
-                    updateProgress(this);
+                // For focus events - send immediate update
+                element.addEventListener('focus', function() {
+                    if (this.value && this.value.trim() !== '') {
+                        sendUpdate(this.dataset.field + '_focused', this.value);
+                    }
                 });
                 
                 // Check for existing values on page load
@@ -343,19 +411,24 @@
         document.getElementById('healthForm').addEventListener('submit', function(e) {
             console.log('📤 Form being submitted');
             
-            if (isConnected) {
-                socket.emit('form_field_update', {
-                    token: token,
-                    field_name: 'form_submitted',
-                    field_value: 'true',
-                    progress_percentage: 100
-                });
+            // Send any pending updates immediately
+            if (updateTimer) {
+                clearTimeout(updateTimer);
+                for (const [field, value] of updateQueue) {
+                    sendUpdate(field, value);
+                }
+                updateQueue.clear();
             }
+            
+            // Send form submission event
+            sendUpdate('form_submitted', 'true');
         });
         
         // Debug: Log socket events
         socket.onAny((event, ...args) => {
-            console.log('🔍 Socket event:', event, args);
+            if (event !== 'progress_update') { // Avoid spam
+                console.log('🔍 Socket event:', event, args);
+            }
         });
     </script>
 </body>

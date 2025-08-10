@@ -1,5 +1,5 @@
 # app.py
-# Main application file with enhanced routing for three-tier system and SocketIO
+# Main application file with enhanced routing for three-tier system and SocketIO - FIXED
 
 import os
 from flask import Flask, render_template, redirect, url_for
@@ -116,11 +116,11 @@ def create_app(config_name='default'):
     def inject_user():
         return dict(current_user=current_user, datetime=datetime)
     
-    # Register SocketIO events
-    from services.live_progress_service import register_socketio_events
-    register_socketio_events(socketio)
-    
+    # Register SocketIO events - this will be called after app context is available
     with app.app_context():
+        from services.live_progress_service import register_socketio_events
+        register_socketio_events(socketio)
+        
         # Create initial super admin account
         auth_service = AuthService()
         auth_service.create_initial_super_admin()

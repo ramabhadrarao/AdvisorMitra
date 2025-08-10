@@ -1,5 +1,5 @@
 # services/translation_service.py
-# Google Translate service for multi-language support
+# Google Translate service for multi-language support - FIXED for Flask context
 
 from googletrans import Translator
 import redis
@@ -12,6 +12,7 @@ class TranslationService:
         self.translator = Translator()
         self.redis_client = None
         self.logger = logging.getLogger(__name__)
+        self._initialized = False
         
         # Language mapping
         self.supported_languages = {
@@ -25,14 +26,28 @@ class TranslationService:
             'ta': 'Tamil',
             'ml': 'Malayalam'
         }
-        
-        # Initialize Redis connection
+    
+    def _init_redis(self):
+        """Initialize Redis connection with proper Flask context"""
+        if self._initialized:
+            return
+            
         try:
-            self.redis_client = redis.from_url(current_app.config.get('REDIS_URL', 'redis://localhost:6379/0'))
-            self.redis_client.ping()
+            # Only initialize if we have an application context
+            if current_app:
+                redis_url = current_app.config.get('REDIS_URL', 'redis://localhost:6379/0')
+                self.redis_client = redis.from_url(redis_url)
+                self.redis_client.ping()
+                self._initialized = True
         except Exception as e:
             self.logger.warning(f"Redis connection failed: {e}. Translations will not be cached.")
             self.redis_client = None
+    
+    def _ensure_redis(self):
+        """Ensure Redis is initialized before use"""
+        if not self._initialized:
+            self._init_redis()
+        return self.redis_client is not None
     
     def get_cache_key(self, text, target_lang):
         """Generate cache key for translation"""
@@ -42,7 +57,7 @@ class TranslationService:
     
     def get_cached_translation(self, text, target_lang):
         """Get translation from cache"""
-        if not self.redis_client:
+        if not self._ensure_redis():
             return None
         
         try:
@@ -57,7 +72,7 @@ class TranslationService:
     
     def cache_translation(self, text, target_lang, translation):
         """Cache translation"""
-        if not self.redis_client:
+        if not self._ensure_redis():
             return
         
         try:
