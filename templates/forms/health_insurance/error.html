@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+    <meta http-equiv="X-UA-Compatible" content="ie=edge"/>
+    <title>Error - Form Not Available</title>
+    <link href="https://unpkg.com/@tabler/core@latest/dist/css/tabler.min.css" rel="stylesheet"/>
+    <style>
+        body {
+            background-color: #f4f6fa;
+        }
+        .error-container {
+            max-width: 600px;
+            margin: 100px auto;
+            padding: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="error-container">
+        <div class="card">
+            <div class="card-status-top bg-danger"></div>
+            <div class="card-body text-center">
+                <div class="mb-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-lg text-danger" width="72" height="72" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+                </div>
+                
+                <h2 class="text-danger">Form Not Available</h2>
+                <p class="text-muted mb-4">{{ message }}</p>
+                
+                <div class="alert alert-warning text-start">
+                    <h4 class="alert-title">Possible reasons:</h4>
+                    <ul class="mb-0">
+                        <li>The form link may have expired</li>
+                        <li>The link might be incorrect</li>
+                        <li>The form may have reached its usage limit</li>
+                    </ul>
+                </div>
+                
+                <p class="mt-4">Please contact your financial advisor for a new form link.</p>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://unpkg.com/@tabler/core@latest/dist/js/tabler.min.js"></script>
+</body>
+</html>

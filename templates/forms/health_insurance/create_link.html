@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block title %}Create Health Insurance Form Link - Financial Planning System{% endblock %}
+
+{% block content %}
+<div class="page-header d-print-none">
+    <div class="container-xl">
+        <div class="row g-2 align-items-center">
+            <div class="col">
+                <h2 class="page-title">Create Health Insurance Form Link</h2>
+                <div class="text-muted mt-1">
+                    PDFs Remaining: {{ pdf_remaining }}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="page-body">
+    <div class="container-xl">
+        <div class="row">
+            <div class="col-12 col-md-6 mx-auto">
+                <form method="post" class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Form Link Settings</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label required">Form Language</label>
+                            <select name="language" class="form-select" required>
+                                {% for code, name in languages.items() %}
+                                <option value="{{ code }}" {% if code == 'en' %}selected{% endif %}>{{ name }}</option>
+                                {% endfor %}
+                            </select>
+                            <small class="form-hint">Select the language for the form</small>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Link Expiry (Days)</label>
+                            <input type="number" name="expires_days" class="form-control" value="30" min="1" max="365">
+                            <small class="form-hint">Number of days before the link expires</small>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Usage Limit</label>
+                            <input type="number" name="usage_limit" class="form-control" min="1">
+                            <small class="form-hint">Leave empty for unlimited usage</small>
+                        </div>
+                        
+                        <div class="alert alert-info">
+                            <h4 class="alert-title">How it works</h4>
+                            <ul class="mb-0">
+                                <li>A unique link will be generated for your customers</li>
+                                <li>Share this link via WhatsApp, Email, or any messaging platform</li>
+                                <li>Customers can fill the form in their preferred language</li>
+                                <li>You'll receive the data and can generate PDF reports</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="card-footer text-end">
+                        <a href="{{ url_for('health_insurance.index') }}" class="btn btn-link">Cancel</a>
+                        <button type="submit" class="btn btn-primary">Create Link</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

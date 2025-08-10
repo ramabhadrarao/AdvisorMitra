@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+
+{% block title %}Health Insurance Form Links - Financial Planning System{% endblock %}
+
+{% block content %}
+<div class="page-header d-print-none">
+    <div class="container-xl">
+        <div class="row g-2 align-items-center">
+            <div class="col">
+                <h2 class="page-title">Health Insurance Form Links</h2>
+            </div>
+            <div class="col-auto ms-auto d-print-none">
+                <div class="btn-list">
+                    <a href="{{ url_for('health_insurance.index') }}" class="btn btn-secondary">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 11l-4 4l4 4m-4 -4h11a4 4 0 0 0 0 -8h-1" /></svg>
+                        Back to Forms
+                    </a>
+                    <a href="{{ url_for('health_insurance.create_link') }}" class="btn btn-primary">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 5l0 14" /><path d="M5 12l14 0" /></svg>
+                        Create New Link
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="page-body">
+    <div class="container-xl">
+        <div class="card">
+            <div class="table-responsive">
+                <table class="table card-table table-vcenter text-nowrap">
+                    <thead>
+                        <tr>
+                            <th>Language</th>
+                            <th>Created</th>
+                            <th>Expires</th>
+                            <th>Usage</th>
+                            <th>Status</th>
+                            <th>Link</th>
+                            <th class="w-1"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for link in links %}
+                        <tr>
+                            <td>
+                                {% set lang_map = {'en': 'English', 'hi': 'हिंदी', 'mr': 'मराठी', 'gu': 'ગુજરાતી', 'te': 'తెలుగు', 'bn': 'বাংলা', 'kn': 'ಕನ್ನಡ', 'ta': 'தமிழ்', 'ml': 'മലയാളം'} %}
+                                {{ lang_map.get(link.language, link.language) }}
+                            </td>
+                            <td>{{ link.created_at.strftime('%Y-%m-%d') if link.created_at else '-' }}</td>
+                            <td>
+                                {% if link.expires_at %}
+                                    {{ link.expires_at.strftime('%Y-%m-%d') }}
+                                    {% if link.expires_at < datetime.utcnow() %}
+                                        <span class="badge bg-danger ms-1">Expired</span>
+                                    {% endif %}
+                                {% else %}
+                                    Never
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if link.usage_limit %}
+                                    {{ link.usage_count }} / {{ link.usage_limit }}
+                                {% else %}
+                                    {{ link.usage_count }} / ∞
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="badge bg-{{ 'success' if link.is_active else 'danger' }}">
+                                    {{ 'Active' if link.is_active else 'Inactive' }}
+                                </span>
+                            </td>
+                            <td>
+                                <div class="input-group input-group-sm">
+                                    <input type="text" class="form-control" value="{{ url_for('health_insurance.public_form', token=link.token, _external=True) }}" readonly id="link-{{ link.id }}">
+                                    <button class="btn btn-primary btn-sm" onclick="copyLink('link-{{ link.id }}')">Copy</button>
+                                </div>
+                            </td>
+                            <td>
+                                <button class="btn btn-sm btn-{{ 'warning' if link.is_active else 'success' }}" 
+                                        onclick="toggleStatus('{{ link.id }}')">
+                                    {{ 'Deactivate' if link.is_active else 'Activate' }}
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            {% if total == 0 %}
+            <div class="empty">
+                <p class="empty-title">No links found</p>
+                <p class="empty-subtitle text-muted">
+                    Create your first form link to start collecting customer data.
+                </p>
+                <div class="empty-action">
+                    <a href="{{ url_for('health_insurance.create_link') }}" class="btn btn-primary">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 5l0 14" /><path d="M5 12l14 0" /></svg>
+                        Create Form Link
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+            
+            {% if total_pages > 1 %}
+            <div class="card-footer d-flex align-items-center">
+                <p class="m-0 text-muted">Showing <span>{{ (page - 1) * per_page + 1 }}</span> to <span>{{ page * per_page if page * per_page < total else total }}</span> of <span>{{ total }}</span> entries</p>
+                <ul class="pagination m-0 ms-auto">
+                    {% if page > 1 %}
+                    <li class="page-item">
+                        <a class="page-link" href="{{ url_for('health_insurance.links', page=page-1) }}">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M15 6l-6 6l6 6" /></svg>
+                            prev
+                        </a>
+                    </li>
+                    {% endif %}
+                    
+                    {% for p in range(1, total_pages + 1) %}
+                        {% if p == page %}
+                            <li class="page-item active"><a class="page-link">{{ p }}</a></li>
+                        {% else %}
+                            <li class="page-item">
+                                <a class="page-link" href="{{ url_for('health_insurance.links', page=p) }}">{{ p }}</a>
+                            </li>
+                        {% endif %}
+                    {% endfor %}
+                    
+                    {% if page < total_pages %}
+                    <li class="page-item">
+                        <a class="page-link" href="{{ url_for('health_insurance.links', page=page+1) }}">
+                            next
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path d="M9 6l6 6l-6 6" /></svg>
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function copyLink(inputId) {
+    const input = document.getElementById(inputId);
+    input.select();
+    document.execCommand('copy');
+    alert('Link copied to clipboard!');
+}
+
+async function toggleStatus(linkId) {
+    if (!confirm('Are you sure you want to change the status of this link?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/forms/health-insurance/api/link/${linkId}/toggle-status`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            window.location.reload();
+        } else {
+            alert('Error updating status');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error updating status');
+    }
+}
+</script>
+{% endblock %}

@@ -47,7 +47,8 @@ def create_app(config_name='default'):
     from controllers.plan_controller import plans_bp
     from controllers.coupon_controller import coupons_bp
     from controllers.dashboard_controller import dashboard_bp as dashboard_api_bp
-    
+    from controllers.forms.health_insurance_controller import health_insurance_bp
+
     # Register blueprints
     app.register_blueprint(auth_bp, url_prefix='/auth')
     app.register_blueprint(users_bp, url_prefix='/users')
@@ -55,6 +56,8 @@ def create_app(config_name='default'):
     app.register_blueprint(coupons_bp, url_prefix='/coupons')
     # Register dashboard API blueprint without prefix for API routes
     app.register_blueprint(dashboard_api_bp)
+    app.register_blueprint(health_insurance_bp, url_prefix='/forms/health-insurance')
+
     
     # Dashboard route
     @app.route('/')

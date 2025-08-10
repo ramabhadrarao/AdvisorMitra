@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+    <meta http-equiv="X-UA-Compatible" content="ie=edge"/>
+    <title>स्वास्थ्य बीमा आवश्यकता विश्लेषण फॉर्म</title>
+    <link href="https://unpkg.com/@tabler/core@latest/dist/css/tabler.min.css" rel="stylesheet"/>
+    <style>
+        body {
+            background-color: #f4f6fa;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+        }
+        .form-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .agent-info {
+            background-color: #206bc4;
+            color: white;
+            padding: 20px;
+            border-radius: 10px 10px 0 0;
+            text-align: center;
+        }
+        .form-card {
+            border-radius: 0 0 10px 10px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        }
+        .required::after {
+            content: " *";
+            color: #d63939;
+        }
+    </style>
+</head>
+<body>
+    <div class="form-container">
+        <div class="agent-info">
+            <h2>स्वास्थ्य बीमा आवश्यकता विश्लेषण</h2>
+            <p class="mb-0">आपके वित्तीय सलाहकार: <strong>{{ agent_name }}</strong></p>
+            {% if agent_phone %}
+            <p class="mb-0">संपर्क: <strong>{{ agent_phone }}</strong></p>
+            {% endif %}
+        </div>
+        
+        <form method="post" class="card form-card">
+            <div class="card-body">
+                <div class="mb-4">
+                    <h3 class="card-title">कृपया अपना विवरण भरें</h3>
+                    <p class="text-muted">* चिह्नित सभी फ़ील्ड अनिवार्य हैं</p>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label required">पूरा नाम</label>
+                        <input type="text" name="name" class="form-control" required>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label required">ईमेल पता</label>
+                        <input type="email" name="email" class="form-control" required>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label required">मोबाइल नंबर</label>
+                        <input type="tel" name="mobile" class="form-control" pattern="[0-9]{10}" required>
+                        <small class="form-hint">10 अंकों का मोबाइल नंबर</small>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label required">निवास शहर</label>
+                        <select name="city_of_residence" class="form-select" required>
+                            <option value="">शहर चुनें</option>
+                            {% for city in cities %}
+                            <option value="{{ city }}">{{ city }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label required">आपकी आयु</label>
+                        <input type="number" name="age" class="form-control" min="18" max="100" required>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label required">परिवार के सदस्यों की संख्या</label>
+                        <input type="number" name="number_of_members" class="form-control" min="1" max="10" value="1" required>
+                        <small class="form-hint">आप सहित</small>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label required">सबसे बड़े परिवार के सदस्य की आयु</label>
+                    <input type="number" name="eldest_member_age" class="form-control" min="18" max="100" required>
+                </div>
+                
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label required">पहले से मौजूद बीमारियाँ?</label>
+                        <select name="pre_existing_diseases" class="form-select" required>
+                            <option value="">चुनें</option>
+                            <option value="Yes">हाँ</option>
+                            <option value="No">नहीं</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label required">बड़ी सर्जरी का इतिहास?</label>
+                        <select name="major_surgery" class="form-select" required>
+                            <option value="">चुनें</option>
+                            <option value="Yes">हाँ</option>
+                            <option value="No">नहीं</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label required">क्या आपके पास मौजूदा स्वास्थ्य बीमा है?</label>
+                    <select name="existing_insurance" class="form-select" required onchange="toggleInsuranceFields(this.value)">
+                        <option value="">चुनें</option>
+                        <option value="Yes">हाँ</option>
+                        <option value="No">नहीं</option>
+                    </select>
+                </div>
+                
+                <div id="insurance-details" style="display: none;">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">वर्तमान कवरेज राशि (₹)</label>
+                            <input type="number" name="current_coverage" class="form-control" min="0" step="50000" value="0">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">मौजूदा पॉलिसी पोर्ट करना चाहते हैं?</label>
+                            <select name="port_policy" class="form-select">
+                                <option value="No">नहीं</option>
+                                <option value="Yes">हाँ</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="alert alert-info">
+                    <h4 class="alert-title">गोपनीयता सूचना</h4>
+                    <div class="text-muted">
+                        आपकी जानकारी का उपयोग केवल आपकी स्वास्थ्य बीमा आवश्यकता विश्लेषण तैयार करने के लिए किया जाएगा 
+                        और केवल आपके वित्तीय सलाहकार के साथ साझा की जाएगी।
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card-footer text-end">
+                <button type="submit" class="btn btn-primary">फॉर्म जमा करें</button>
+            </div>
+        </form>
+    </div>
+    
+    <script src="https://unpkg.com/@tabler/core@latest/dist/js/tabler.min.js"></script>
+    <script>
+    function toggleInsuranceFields(value) {
+        const detailsDiv = document.getElementById('insurance-details');
+        if (value === 'Yes') {
+            detailsDiv.style.display = 'block';
+            document.querySelector('input[name="current_coverage"]').required = true;
+            document.querySelector('select[name="port_policy"]').required = true;
+        } else {
+            detailsDiv.style.display = 'none';
+            document.querySelector('input[name="current_coverage"]').required = false;
+            document.querySelector('select[name="port_policy"]').required = false;
+        }
+    }
+    </script>
+</body>
+</html>

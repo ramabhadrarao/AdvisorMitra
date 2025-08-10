@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+
+{% block title %}Health Insurance Forms - Financial Planning System{% endblock %}
+
+{% block content %}
+<div class="page-header d-print-none">
+    <div class="container-xl">
+        <div class="row g-2 align-items-center">
+            <div class="col">
+                <h2 class="page-title">Health Insurance Forms</h2>
+                <div class="text-muted mt-1">
+                    PDF Used: {{ current_user.agent_pdf_generated }} / {{ current_user.agent_pdf_limit }}
+                </div>
+            </div>
+            <div class="col-auto ms-auto d-print-none">
+                <div class="btn-list">
+                    <a href="{{ url_for('health_insurance.links') }}" class="btn btn-secondary">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-.5 .5" /><path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l.5 -.5" /></svg>
+                        Manage Links
+                    </a>
+                    <a href="{{ url_for('health_insurance.create_link') }}" class="btn btn-primary">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 5l0 14" /><path d="M5 12l14 0" /></svg>
+                        Create Form Link
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="page-body">
+    <div class="container-xl">
+        <div class="card">
+            <div class="table-responsive">
+                <table class="table card-table table-vcenter text-nowrap">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Mobile</th>
+                            <th>City</th>
+                            <th>Members</th>
+                            <th>Submitted</th>
+                            <th>PDF</th>
+                            <th class="w-1"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for form in forms %}
+                        <tr>
+                            <td>{{ form.name }}</td>
+                            <td>{{ form.email }}</td>
+                            <td>{{ form.mobile }}</td>
+                            <td>{{ form.city_of_residence }}</td>
+                            <td>{{ form.number_of_members }}</td>
+                            <td>{{ form.created_at.strftime('%Y-%m-%d %H:%M') if form.created_at else '-' }}</td>
+                            <td>
+                                {% if form.pdf_generated %}
+                                    <span class="badge bg-success">Generated</span>
+                                {% else %}
+                                    <span class="badge bg-warning">Pending</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="btn-list flex-nowrap">
+                                    <a href="{{ url_for('health_insurance.view_form', form_id=form.id) }}" class="btn btn-sm">
+                                        View
+                                    </a>
+                                    {% if form.pdf_generated %}
+                                        <a href="{{ url_for('health_insurance.download_pdf', form_id=form.id, filename=form.pdf_filename) }}" 
+                                           class="btn btn-sm btn-primary">
+                                            Download PDF
+                                        </a>
+                                    {% else %}
+                                        <button class="btn btn-sm btn-success" onclick="generatePDF('{{ form.id }}')">
+                                            Generate PDF
+                                        </button>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            {% if total == 0 %}
+            <div class="empty">
+                <p class="empty-title">No forms found</p>
+                <p class="empty-subtitle text-muted">
+                    Create a form link and share it with your customers to start collecting data.
+                </p>
+                <div class="empty-action">
+                    <a href="{{ url_for('health_insurance.create_link') }}" class="btn btn-primary">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M12 5l0 14" /><path d="M5 12l14 0" /></svg>
+                        Create Form Link
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+            
+            {% if total_pages > 1 %}
+            <div class="card-footer d-flex align-items-center">
+                <p class="m-0 text-muted">Showing <span>{{ (page - 1) * per_page + 1 }}</span> to <span>{{ page * per_page if page * per_page < total else total }}</span> of <span>{{ total }}</span> entries</p>
+                <ul class="pagination m-0 ms-auto">
+                    {% if page > 1 %}
+                    <li class="page-item">
+                        <a class="page-link" href="{{ url_for('health_insurance.index', page=page-1) }}">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M15 6l-6 6l6 6" /></svg>
+                            prev
+                        </a>
+                    </li>
+                    {% endif %}
+                    
+                    {% for p in range(1, total_pages + 1) %}
+                        {% if p == page %}
+                            <li class="page-item active"><a class="page-link">{{ p }}</a></li>
+                        {% else %}
+                            <li class="page-item">
+                                <a class="page-link" href="{{ url_for('health_insurance.index', page=p) }}">{{ p }}</a>
+                            </li>
+                        {% endif %}
+                    {% endfor %}
+                    
+                    {% if page < total_pages %}
+                    <li class="page-item">
+                        <a class="page-link" href="{{ url_for('health_insurance.index', page=page+1) }}">
+                            next
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path d="M9 6l6 6l-6 6" /></svg>
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function generatePDF(formId) {
+    if (!confirm('Are you sure you want to generate PDF for this form?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/forms/health-insurance/${formId}/generate-pdf`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert('PDF generated successfully!');
+            window.location.reload();
+        } else {
+            alert('Error generating PDF: ' + data.error);
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error generating PDF');
+    }
+}
+</script>
+{% endblock %}

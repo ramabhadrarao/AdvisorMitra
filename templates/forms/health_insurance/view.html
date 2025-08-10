@@ -1,0 +1,198 @@
+{% extends "base.html" %}
+
+{% block title %}View Form - Health Insurance{% endblock %}
+
+{% block content %}
+<div class="page-header d-print-none">
+    <div class="container-xl">
+        <div class="row g-2 align-items-center">
+            <div class="col">
+                <h2 class="page-title">Health Insurance Form Details</h2>
+            </div>
+            <div class="col-auto ms-auto d-print-none">
+                <div class="btn-list">
+                    <a href="{{ url_for('health_insurance.index') }}" class="btn btn-secondary">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 11l-4 4l4 4m-4 -4h11a4 4 0 0 0 0 -8h-1" /></svg>
+                        Back to List
+                    </a>
+                    {% if form.pdf_generated %}
+                    <a href="{{ url_for('health_insurance.download_pdf', form_id=form.id, filename=form.pdf_filename) }}" 
+                       class="btn btn-primary">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M14 3v4a1 1 0 0 0 1 1h4" /><path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" /><path d="M9 15l2 2l4 -4" /></svg>
+                        Download PDF
+                    </a>
+                    {% else %}
+                    <button class="btn btn-success" onclick="generatePDF('{{ form.id }}')">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M14 3v4a1 1 0 0 0 1 1h4" /><path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" /><path d="M12 14m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" /><path d="M14 14l1.5 1.5" /></svg>
+                        Generate PDF
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="page-body">
+    <div class="container-xl">
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Customer Information</h3>
+                        <div class="card-actions">
+                            <span class="badge bg-info">{{ form.language.upper() }}</span>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="datagrid">
+                            <div class="datagrid-item">
+                                <div class="datagrid-title">Name</div>
+                                <div class="datagrid-content">{{ form.name }}</div>
+                            </div>
+                            <div class="datagrid-item">
+                                <div class="datagrid-title">Email</div>
+                                <div class="datagrid-content">{{ form.email }}</div>
+                            </div>
+                            <div class="datagrid-item">
+                                <div class="datagrid-title">Mobile</div>
+                                <div class="datagrid-content">{{ form.mobile }}</div>
+                            </div>
+                            <div class="datagrid-item">
+                                <div class="datagrid-title">City</div>
+                                <div class="datagrid-content">{{ form.city_of_residence }} ({{ form.tier_city }})</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h3 class="card-title">Insurance Details</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="datagrid">
+                            <div class="datagrid-item">
+                                <div class="datagrid-title">Age</div>
+                                <div class="datagrid-content">{{ form.age }} years</div>
+                            </div>
+                            <div class="datagrid-item">
+                                <div class="datagrid-title">Family Members</div>
+                                <div class="datagrid-content">{{ form.number_of_members }}</div>
+                            </div>
+                            <div class="datagrid-item">
+                                <div class="datagrid-title">Eldest Member Age</div>
+                                <div class="datagrid-content">{{ form.eldest_member_age }} years</div>
+                            </div>
+                            <div class="datagrid-item">
+                                <div class="datagrid-title">Pre-existing Diseases</div>
+                                <div class="datagrid-content">
+                                    <span class="badge bg-{{ 'danger' if form.pre_existing_diseases == 'Yes' else 'success' }}">
+                                        {{ form.pre_existing_diseases }}
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="datagrid-item">
+                                <div class="datagrid-title">Major Surgery History</div>
+                                <div class="datagrid-content">
+                                    <span class="badge bg-{{ 'warning' if form.major_surgery == 'Yes' else 'success' }}">
+                                        {{ form.major_surgery }}
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="datagrid-item">
+                                <div class="datagrid-title">Existing Insurance</div>
+                                <div class="datagrid-content">
+                                    <span class="badge bg-{{ 'info' if form.existing_insurance == 'Yes' else 'secondary' }}">
+                                        {{ form.existing_insurance }}
+                                    </span>
+                                </div>
+                            </div>
+                            {% if form.existing_insurance == 'Yes' %}
+                            <div class="datagrid-item">
+                                <div class="datagrid-title">Current Coverage</div>
+                                <div class="datagrid-content">₹{{ "{:,.0f}".format(form.current_coverage) }}</div>
+                            </div>
+                            <div class="datagrid-item">
+                                <div class="datagrid-title">Port Policy</div>
+                                <div class="datagrid-content">{{ form.port_policy }}</div>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card mt-3">
+                    <div class="card-header">
+                        <h3 class="card-title">Submission Details</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="datagrid">
+                            <div class="datagrid-item">
+                                <div class="datagrid-title">Submitted On</div>
+                                <div class="datagrid-content">{{ form.created_at.strftime('%Y-%m-%d %H:%M:%S') if form.created_at else '-' }}</div>
+                            </div>
+                            <div class="datagrid-item">
+                                <div class="datagrid-title">PDF Status</div>
+                                <div class="datagrid-content">
+                                    {% if form.pdf_generated %}
+                                        <span class="badge bg-success">Generated</span>
+                                    {% else %}
+                                        <span class="badge bg-warning">Not Generated</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% if form.pdf_generated %}
+                            <div class="datagrid-item">
+                                <div class="datagrid-title">PDF Generated On</div>
+                                <div class="datagrid-content">{{ form.pdf_generated_at.strftime('%Y-%m-%d %H:%M:%S') if form.pdf_generated_at else '-' }}</div>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function generatePDF(formId) {
+    if (!confirm('Are you sure you want to generate PDF for this form?')) {
+        return;
+    }
+    
+    const btn = event.target;
+    const originalText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Generating...';
+    
+    try {
+        const response = await fetch(`/forms/health-insurance/${formId}/generate-pdf`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert('PDF generated successfully!');
+            window.location.reload();
+        } else {
+            alert('Error generating PDF: ' + data.error);
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error generating PDF');
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+    }
+}
+</script>
+{% endblock %}

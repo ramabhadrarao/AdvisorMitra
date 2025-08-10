@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+    <meta http-equiv="X-UA-Compatible" content="ie=edge"/>
+    <title>Form Submitted Successfully</title>
+    <link href="https://unpkg.com/@tabler/core@latest/dist/css/tabler.min.css" rel="stylesheet"/>
+    <style>
+        body {
+            background-color: #f4f6fa;
+        }
+        .success-container {
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .success-card {
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        }
+        .agent-contact {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="success-container">
+        <div class="card success-card">
+            <div class="card-status-top bg-success"></div>
+            <div class="card-body text-center">
+                <div class="mb-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-lg text-success" width="72" height="72" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><path d="M9 12l2 2l4 -4" /></svg>
+                </div>
+                
+                <h2 class="text-success">Thank You!</h2>
+                <p class="text-muted mb-4">Your health insurance requirement details have been submitted successfully.</p>
+                
+                <div class="alert alert-info text-start">
+                    <h4 class="alert-title">What happens next?</h4>
+                    <ul class="mb-0">
+                        <li>Your financial advisor will analyze your requirements</li>
+                        <li>A personalized health insurance recommendation report will be prepared</li>
+                        <li>You will be contacted with the best suitable options</li>
+                    </ul>
+                </div>
+                
+                <div class="agent-contact">
+                    <h4>Your Financial Advisor</h4>
+                    <p class="mb-1"><strong>{{ agent_name }}</strong></p>
+                    {% if agent_phone %}
+                    <p class="mb-0">Contact: <strong>{{ agent_phone }}</strong></p>
+                    {% endif %}
+                </div>
+                
+                <div class="mt-4">
+                    <p class="text-muted small">Reference ID: {{ form_id }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://unpkg.com/@tabler/core@latest/dist/js/tabler.min.js"></script>
+</body>
+</html>
