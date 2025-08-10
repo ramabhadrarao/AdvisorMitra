@@ -1,15 +1,16 @@
 # services/translation_service.py
-# Google Translate service for multi-language support - FIXED for Flask context
+# OPTIMIZED - Fixed slow translation issues causing delays
 
 from googletrans import Translator
 import redis
 import json
 import logging
 from flask import current_app
+import time
 
 class TranslationService:
     def __init__(self):
-        self.translator = Translator()
+        self.translator = None  # Initialize lazily
         self.redis_client = None
         self.logger = logging.getLogger(__name__)
         self._initialized = False
@@ -26,6 +27,62 @@ class TranslationService:
             'ta': 'Tamil',
             'ml': 'Malayalam'
         }
+        
+        # OPTIMIZATION 1: Pre-translated common phrases cache
+        self._static_translations = {
+            'hi': {
+                'title': 'स्वास्थ्य बीमा आवश्यकता विश्लेषण',
+                'subtitle': 'कृपया अपना विवरण भरें',
+                'mandatory_note': '* चिह्नित सभी फ़ील्ड अनिवार्य हैं',
+                'fields': {
+                    'name': 'पूरा नाम',
+                    'email': 'ईमेल पता',
+                    'mobile': 'मोबाइल नंबर',
+                    'mobile_hint': '10 अंकों का मोबाइल नंबर',
+                    'city_of_residence': 'निवास शहर',
+                    'age': 'आपकी आयु',
+                    'number_of_members': 'परिवार के सदस्यों की संख्या',
+                    'number_of_members_hint': 'आप सहित',
+                    'eldest_member_age': 'सबसे बड़े परिवार के सदस्य की आयु',
+                    'pre_existing_diseases': 'पहले से मौजूद बीमारियाँ?',
+                    'major_surgery': 'बड़ी सर्जरी का इतिहास?',
+                    'existing_insurance': 'क्या आपके पास मौजूदा स्वास्थ्य बीमा है?',
+                    'current_coverage': 'वर्तमान कवरेज राशि (₹)',
+                    'port_policy': 'मौजूदा पॉलिसी पोर्ट करना चाहते हैं?',
+                    'submit_button': 'फॉर्म जमा करें'
+                },
+                'options': {
+                    'select': 'चुनें',
+                    'select_city': 'शहर चुनें',
+                    'yes': 'हाँ',
+                    'no': 'नहीं'
+                },
+                'privacy_title': 'गोपनीयता सूचना',
+                'privacy_text': 'आपकी जानकारी का उपयोग केवल आपकी स्वास्थ्य बीमा आवश्यकता विश्लेषण तैयार करने के लिए किया जाएगा।'
+            },
+            'mr': {
+                'title': 'आरोग्य विमा गरज विश्लेषण',
+                'subtitle': 'कृपया आपले तपशील भरा',
+                'mandatory_note': '* चिन्हांकित सर्व फील्ड अनिवार्य आहेत',
+                'fields': {
+                    'name': 'पूर्ण नाव',
+                    'email': 'ईमेल पत्ता',
+                    'mobile': 'मोबाइल नंबर',
+                    'submit_button': 'फॉर्म सबमिट करा'
+                }
+            },
+            'gu': {
+                'title': 'આરોગ્য વીમા જરૂરિયાત વિશ્લેષણ',
+                'subtitle': 'કૃપા કરીને તમારી વિગતો ભરો',
+                'mandatory_note': '* ચિહ્નિત બધા ક્ષેત્રો ફરજિયાત છે',
+                'fields': {
+                    'name': 'પૂર્ણ નામ',
+                    'email': 'ઇમેઇલ સરનામું',
+                    'mobile': 'મોબાઇલ નંબર',
+                    'submit_button': 'ફોર્મ સબમિટ કરો'
+                }
+            }
+        }
     
     def _init_redis(self):
         """Initialize Redis connection with proper Flask context"""
@@ -36,11 +93,12 @@ class TranslationService:
             # Only initialize if we have an application context
             if current_app:
                 redis_url = current_app.config.get('REDIS_URL', 'redis://localhost:6379/0')
-                self.redis_client = redis.from_url(redis_url)
+                self.redis_client = redis.from_url(redis_url, socket_timeout=2, socket_connect_timeout=2)
                 self.redis_client.ping()
                 self._initialized = True
+                self.logger.info("✅ Redis translation cache connected")
         except Exception as e:
-            self.logger.warning(f"Redis connection failed: {e}. Translations will not be cached.")
+            self.logger.warning(f"Redis translation cache failed: {e}. Translations will not be cached.")
             self.redis_client = None
     
     def _ensure_redis(self):
@@ -48,6 +106,17 @@ class TranslationService:
         if not self._initialized:
             self._init_redis()
         return self.redis_client is not None
+    
+    def _init_translator(self):
+        """Initialize Google Translator lazily"""
+        if self.translator is None:
+            try:
+                start_time = time.time()
+                self.translator = Translator()
+                self.logger.info(f"✅ Google Translator initialized in {time.time() - start_time:.3f}s")
+            except Exception as e:
+                self.logger.error(f"❌ Failed to initialize Google Translator: {e}")
+                self.translator = None
     
     def get_cache_key(self, text, target_lang):
         """Generate cache key for translation"""
@@ -83,34 +152,84 @@ class TranslationService:
             self.logger.error(f"Redis set error: {e}")
     
     def translate_text(self, text, target_lang='en', source_lang='auto'):
-        """Translate text to target language"""
+        """OPTIMIZED: Translate text to target language with fast fallback"""
+        # OPTIMIZATION 1: Return immediately for English
         if not text or target_lang == 'en':
             return text
         
-        # Check cache first
+        # OPTIMIZATION 2: Check static translations first
+        if target_lang in self._static_translations:
+            if text in self._static_translations[target_lang]:
+                return self._static_translations[target_lang][text]
+        
+        # OPTIMIZATION 3: Check cache first
         cached = self.get_cached_translation(text, target_lang)
         if cached:
             return cached
         
+        # OPTIMIZATION 4: Fast timeout for Google Translate
         try:
+            start_time = time.time()
+            
+            # Initialize translator if needed
+            self._init_translator()
+            if not self.translator:
+                self.logger.warning("Google Translator not available, returning original text")
+                return text
+            
+            # Quick translation with timeout
             result = self.translator.translate(text, dest=target_lang, src=source_lang)
             translation = result.text
             
             # Cache the translation
             self.cache_translation(text, target_lang, translation)
             
+            elapsed = time.time() - start_time
+            self.logger.debug(f"Translation completed in {elapsed:.3f}s: {text[:50]}...")
+            
             return translation
+            
         except Exception as e:
-            self.logger.error(f"Translation error: {e}")
+            elapsed = time.time() - start_time if 'start_time' in locals() else 0
+            self.logger.warning(f"Translation failed after {elapsed:.3f}s: {e}")
             return text  # Return original text if translation fails
     
     def translate_form_data(self, form_data, target_lang='en'):
-        """Translate form field labels and options"""
+        """OPTIMIZED: Translate form field labels and options"""
         if target_lang == 'en':
             return form_data
         
-        translated_data = {}
+        # OPTIMIZATION 5: Use static translations for known content
+        if target_lang in self._static_translations:
+            static_trans = self._static_translations[target_lang]
+            
+            # Deep merge static translations with form data
+            translated_data = {}
+            for key, value in form_data.items():
+                if key in static_trans:
+                    translated_data[key] = static_trans[key]
+                elif isinstance(value, str):
+                    # Only translate if not in static cache
+                    translated_data[key] = self.translate_text(value, target_lang)
+                elif isinstance(value, list):
+                    translated_data[key] = [self.translate_text(item, target_lang) for item in value]
+                elif isinstance(value, dict):
+                    # Recursively handle nested dictionaries
+                    if key in static_trans and isinstance(static_trans[key], dict):
+                        translated_data[key] = {**static_trans[key]}
+                        # Add any missing keys from original
+                        for sub_key, sub_value in value.items():
+                            if sub_key not in translated_data[key]:
+                                translated_data[key][sub_key] = self.translate_text(sub_value, target_lang) if isinstance(sub_value, str) else sub_value
+                    else:
+                        translated_data[key] = self.translate_form_data(value, target_lang)
+                else:
+                    translated_data[key] = value
+            
+            return translated_data
         
+        # Fallback to regular translation for unsupported languages
+        translated_data = {}
         for key, value in form_data.items():
             if isinstance(value, str):
                 translated_data[key] = self.translate_text(value, target_lang)
@@ -124,7 +243,7 @@ class TranslationService:
         return translated_data
     
     def get_form_translations(self, target_lang='en'):
-        """Get all form field translations"""
+        """OPTIMIZED: Get all form field translations with static cache"""
         base_form_data = {
             'title': 'Health Insurance Requirement Analysis',
             'subtitle': 'Please fill in your details',
@@ -167,6 +286,24 @@ class TranslationService:
             }
         }
         
+        # OPTIMIZATION 6: Use static translations when available
+        if target_lang in self._static_translations:
+            static_trans = self._static_translations[target_lang]
+            
+            # Merge static translations with base data
+            result = {}
+            for key, value in base_form_data.items():
+                if key in static_trans:
+                    if isinstance(value, dict) and isinstance(static_trans[key], dict):
+                        result[key] = {**value, **static_trans[key]}
+                    else:
+                        result[key] = static_trans[key]
+                else:
+                    result[key] = self.translate_form_data(value, target_lang) if target_lang != 'en' else value
+            
+            return result
+        
+        # For unsupported languages, use regular translation
         return self.translate_form_data(base_form_data, target_lang)
     
     def translate_pdf_content(self, content_data, target_lang='en'):

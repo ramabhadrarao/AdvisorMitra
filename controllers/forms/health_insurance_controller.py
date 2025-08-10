@@ -1,5 +1,5 @@
 # controllers/forms/health_insurance_controller.py
-# FIXED - Properly handle agent_id in form sessions and ensure live progress tracking
+# OPTIMIZED - Fixed performance issues causing 1-minute delays
 
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, send_file
 from flask_login import login_required, current_user
@@ -9,6 +9,10 @@ from services.live_progress_service import progress_service
 from utils.decorators import login_required
 import os
 from datetime import timedelta, datetime
+import logging
+
+# Set up logging
+logger = logging.getLogger(__name__)
 
 health_insurance_bp = Blueprint('health_insurance', __name__)
 
@@ -24,6 +28,39 @@ SUPPORTED_LANGUAGES = {
     'ta': 'தமிழ்',
     'ml': 'മലയാളം'
 }
+
+# OPTIMIZATION 1: Cache translation service
+_translation_service = None
+
+def get_translation_service():
+    global _translation_service
+    if _translation_service is None:
+        _translation_service = TranslationService()
+    return _translation_service
+
+# OPTIMIZATION 2: Cache cities list to avoid repeated processing
+_cached_cities = None
+
+def get_cities_list(language='en'):
+    global _cached_cities
+    if _cached_cities is None:
+        _cached_cities = {
+            'en': [
+                'Mumbai', 'Delhi', 'Bangalore', 'Hyderabad', 'Chennai', 'Kolkata',
+                'Pune', 'Ahmedabad', 'Jaipur', 'Surat', 'Lucknow', 'Kanpur',
+                'Nagpur', 'Indore', 'Bhopal', 'Visakhapatnam', 'Patna', 'Vadodara',
+                'Ghaziabad', 'Ludhiana', 'Agra', 'Nashik', 'Faridabad', 'Meerut',
+                'Rajkot', 'Varanasi', 'Srinagar', 'Aurangabad', 'Dhanbad', 'Amritsar',
+                'Others'
+            ]
+        }
+    
+    # Return cached English list for non-English languages to avoid translation delays
+    if language == 'en' or language not in SUPPORTED_LANGUAGES:
+        return _cached_cities['en']
+    
+    # For other languages, return English list (city names typically don't need translation)
+    return _cached_cities['en']
 
 @health_insurance_bp.route('/')
 @login_required
@@ -121,141 +158,152 @@ def create_link():
 
 @health_insurance_bp.route('/form/<token>', methods=['GET', 'POST'])
 def public_form(token):
-    """Public form for customers to fill - Dynamic translation"""
-    service = HealthInsuranceFormService()
-    link = service.get_form_link(token)
+    """OPTIMIZED: Public form for customers to fill - Dynamic translation"""
+    start_time = datetime.now()
+    logger.info(f"🚀 Form request started for token: {token}")
     
-    if not link:
-        return render_template('forms/error.html', 
-                             message="Invalid or expired form link"), 404
-    
-    # Check if link is valid
-    is_valid, message = link.is_valid()
-    if not is_valid:
-        return render_template('forms/error.html', message=message), 400
-    
-    # Initialize translation service
-    translation_service = TranslationService()
-    
-    # Get form translations for the specified language
-    form_translations = translation_service.get_form_translations(link.language)
-    
-    if request.method == 'POST':
-        form_data = {
-            'name': request.form.get('name'),
-            'email': request.form.get('email'),
-            'mobile': request.form.get('mobile'),
-            'city_of_residence': request.form.get('city_of_residence'),
-            'age': int(request.form.get('age', 0)),
-            'number_of_members': int(request.form.get('number_of_members', 1)),
-            'eldest_member_age': int(request.form.get('eldest_member_age', 0)),
-            'pre_existing_diseases': request.form.get('pre_existing_diseases'),
-            'major_surgery': request.form.get('major_surgery'),
-            'existing_insurance': request.form.get('existing_insurance'),
-            'current_coverage': float(request.form.get('current_coverage', 0)),
-            'port_policy': request.form.get('port_policy', 'No'),
-            'language': link.language
-        }
+    try:
+        # OPTIMIZATION 3: Get service instance once
+        service = HealthInsuranceFormService()
         
-        form_id, error = service.submit_form(form_data, token)
+        # OPTIMIZATION 4: Fast link validation
+        link = service.get_form_link(token)
+        if not link:
+            logger.warning(f"❌ Invalid token: {token}")
+            return render_template('forms/error.html', 
+                                 message="Invalid or expired form link"), 404
         
-        if form_id:
-            # Mark form as completed in progress tracker
-            progress_service.complete_form_session(token)
+        # OPTIMIZATION 5: Quick validity check
+        is_valid, message = link.is_valid()
+        if not is_valid:
+            logger.warning(f"❌ Invalid link: {message}")
+            return render_template('forms/error.html', message=message), 400
+        
+        # OPTIMIZATION 6: Handle form submission with minimal processing
+        if request.method == 'POST':
+            logger.info(f"📝 Processing form submission for token: {token}")
             
-            return render_template('forms/health_insurance/success.html',
-                                 form_id=form_id,
-                                 agent_name=link.agent_name,
-                                 agent_phone=link.agent_phone,
-                                 translations=form_translations['success'])
-        else:
-            flash(error, 'danger')
-    
-    # FIXED: Start form session for progress tracking with correct agent_id
-    agent_id = str(link.agent_id) if hasattr(link, 'agent_id') and link.agent_id else None
-    
-    # Try multiple ways to get agent_id
-    if not agent_id:
-        try:
-            from models.forms import get_form_links_collection
-            form_links = get_form_links_collection()
-            link_data = form_links.find_one({'token': token})
-            if link_data and link_data.get('agent_id'):
-                agent_id = str(link_data['agent_id'])
-                print(f"🎯 Found agent_id from DB lookup: {agent_id}")
-        except Exception as e:
-            print(f"❌ Error getting agent_id from DB: {e}")
-    
-    # If still no agent_id, try from link object directly
-    if not agent_id and hasattr(link, 'to_dict'):
-        link_dict = link.to_dict()
-        if link_dict.get('agent_id'):
-            agent_id = str(link_dict['agent_id'])
-            print(f"🎯 Found agent_id from link dict: {agent_id}")
-    
-    # Start progress tracking with agent_id
-    if agent_id:
-        progress_service.start_form_session(token, agent_id)
-        print(f"✅ Started form session for token: {token} with agent_id: {agent_id}")
-    else:
-        print(f"⚠️ No agent_id found for token: {token}")
-    
-    # Cities list (will be translated)
-    cities = [
-        'Mumbai', 'Delhi', 'Bangalore', 'Hyderabad', 'Chennai', 'Kolkata',
-        'Pune', 'Ahmedabad', 'Jaipur', 'Surat', 'Lucknow', 'Kanpur',
-        'Nagpur', 'Indore', 'Bhopal', 'Visakhapatnam', 'Patna', 'Vadodara',
-        'Ghaziabad', 'Ludhiana', 'Agra', 'Nashik', 'Faridabad', 'Meerut',
-        'Rajkot', 'Varanasi', 'Srinagar', 'Aurangabad', 'Dhanbad', 'Amritsar',
-        'Others'
-    ]
-    
-    # Translate cities if needed
-    if link.language != 'en':
-        translated_cities = []
-        for city in cities:
-            if city == 'Others':
-                translated_cities.append(translation_service.translate_text('Others', link.language))
+            form_data = {
+                'name': request.form.get('name'),
+                'email': request.form.get('email'),
+                'mobile': request.form.get('mobile'),
+                'city_of_residence': request.form.get('city_of_residence'),
+                'age': int(request.form.get('age', 0)),
+                'number_of_members': int(request.form.get('number_of_members', 1)),
+                'eldest_member_age': int(request.form.get('eldest_member_age', 0)),
+                'pre_existing_diseases': request.form.get('pre_existing_diseases'),
+                'major_surgery': request.form.get('major_surgery'),
+                'existing_insurance': request.form.get('existing_insurance'),
+                'current_coverage': float(request.form.get('current_coverage', 0)),
+                'port_policy': request.form.get('port_policy', 'No'),
+                'language': link.language
+            }
+            
+            form_id, error = service.submit_form(form_data, token)
+            
+            if form_id:
+                # Mark form as completed in progress tracker
+                progress_service.complete_form_session(token)
+                
+                # Get cached translation service
+                translation_service = get_translation_service()
+                form_translations = translation_service.get_form_translations(link.language)
+                
+                logger.info(f"✅ Form submitted successfully: {form_id}")
+                return render_template('forms/health_insurance/success.html',
+                                     form_id=form_id,
+                                     agent_name=link.agent_name,
+                                     agent_phone=link.agent_phone,
+                                     translations=form_translations['success'])
             else:
-                translated_cities.append(city)  # Keep city names in original
-        cities = translated_cities
+                flash(error, 'danger')
+        
+        # OPTIMIZATION 7: Start progress tracking early (async-like)
+        agent_id = str(link.agent_id) if hasattr(link, 'agent_id') and link.agent_id else None
+        
+        # Try multiple ways to get agent_id efficiently
+        if not agent_id:
+            try:
+                from models.forms import get_form_links_collection
+                form_links = get_form_links_collection()
+                link_data = form_links.find_one({'token': token}, {'agent_id': 1})  # Only get agent_id field
+                if link_data and link_data.get('agent_id'):
+                    agent_id = str(link_data['agent_id'])
+                    logger.info(f"🎯 Found agent_id from DB lookup: {agent_id}")
+            except Exception as e:
+                logger.error(f"❌ Error getting agent_id from DB: {e}")
+        
+        # Start progress tracking
+        if agent_id:
+            try:
+                progress_service.start_form_session(token, agent_id)
+                logger.info(f"✅ Started form session for token: {token} with agent_id: {agent_id}")
+            except Exception as e:
+                logger.error(f"❌ Error starting progress session: {e}")
+        else:
+            logger.warning(f"⚠️ No agent_id found for token: {token}")
+        
+        # OPTIMIZATION 8: Get cached cities without translation
+        cities = get_cities_list(link.language)
+        
+        # OPTIMIZATION 9: Get translations efficiently (cache if possible)
+        translation_service = get_translation_service()
+        form_translations = translation_service.get_form_translations(link.language)
+        
+        elapsed_time = (datetime.now() - start_time).total_seconds()
+        logger.info(f"🏁 Form rendering completed in {elapsed_time:.3f}s for token: {token}")
+        
+        return render_template('forms/health_insurance/dynamic_form.html',
+                             token=token,
+                             cities=cities,
+                             agent_name=link.agent_name,
+                             agent_phone=link.agent_phone,
+                             language=link.language,
+                             translations=form_translations)
     
-    return render_template('forms/health_insurance/dynamic_form.html',
-                         token=token,
-                         cities=cities,
-                         agent_name=link.agent_name,
-                         agent_phone=link.agent_phone,
-                         language=link.language,
-                         translations=form_translations)
+    except Exception as e:
+        elapsed_time = (datetime.now() - start_time).total_seconds()
+        logger.error(f"❌ Error processing form request after {elapsed_time:.3f}s: {e}")
+        return render_template('forms/error.html', 
+                             message="An error occurred while loading the form"), 500
 
 @health_insurance_bp.route('/api/translate', methods=['POST'])
 def api_translate():
-    """API endpoint for real-time translation"""
-    data = request.get_json()
-    text = data.get('text', '')
-    target_lang = data.get('target_lang', 'en')
-    
-    if not text:
-        return jsonify({'error': 'No text provided'}), 400
-    
-    translation_service = TranslationService()
-    translated_text = translation_service.translate_text(text, target_lang)
-    
-    return jsonify({
-        'success': True,
-        'original_text': text,
-        'translated_text': translated_text,
-        'target_language': target_lang
-    })
+    """OPTIMIZED: API endpoint for real-time translation"""
+    try:
+        data = request.get_json()
+        text = data.get('text', '')
+        target_lang = data.get('target_lang', 'en')
+        
+        if not text:
+            return jsonify({'error': 'No text provided'}), 400
+        
+        # Use cached translation service
+        translation_service = get_translation_service()
+        translated_text = translation_service.translate_text(text, target_lang)
+        
+        return jsonify({
+            'success': True,
+            'original_text': text,
+            'translated_text': translated_text,
+            'target_language': target_lang
+        })
+    except Exception as e:
+        logger.error(f"Translation error: {e}")
+        return jsonify({'error': 'Translation failed'}), 500
 
 @health_insurance_bp.route('/api/form-progress/<token>')
 def api_form_progress(token):
     """Get current form progress"""
-    progress_data = progress_service.get_form_progress(token)
-    return jsonify({
-        'success': True,
-        'progress': progress_data
-    })
+    try:
+        progress_data = progress_service.get_form_progress(token)
+        return jsonify({
+            'success': True,
+            'progress': progress_data
+        })
+    except Exception as e:
+        logger.error(f"Error getting form progress: {e}")
+        return jsonify({'error': 'Failed to get progress'}), 500
 
 @health_insurance_bp.route('/<form_id>/view')
 @login_required

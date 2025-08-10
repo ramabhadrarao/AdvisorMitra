@@ -49,6 +49,10 @@
             border-left: 3px solid #28a745;
             background-color: #f8fff9;
         }
+        .field-restored {
+            border-left: 3px solid #ffc107;
+            background-color: #fffbf0;
+        }
         .connection-status {
             position: fixed;
             top: 10px;
@@ -80,6 +84,43 @@
             display: none;
             z-index: 1000;
         }
+        .restoration-notice {
+            background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+            border: 1px solid #ffc107;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            animation: slideDown 0.5s ease-out;
+        }
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .restore-btn {
+            background: #ffc107;
+            border: none;
+            color: #000;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 500;
+            margin-right: 10px;
+        }
+        .restore-btn:hover {
+            background: #e0a800;
+        }
+        .clear-btn {
+            background: #dc3545;
+            border: none;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+        .clear-btn:hover {
+            background: #c82333;
+        }
     </style>
 </head>
 <body>
@@ -100,6 +141,27 @@
             {% if agent_phone %}
             <p class="mb-0">{{ translations.fields.mobile if translations.fields else 'Contact' }}: <strong>{{ agent_phone }}</strong></p>
             {% endif %}
+        </div>
+        
+        <!-- Restoration Notice (Hidden by default) -->
+        <div id="restorationNotice" class="restoration-notice" style="display: none;">
+            <div class="d-flex align-items-center mb-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon text-warning me-2" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none">
+                    <path stroke="none" d="M0 0h24v24H0z" fill="none"/>
+                    <path d="M12 9v2m0 4v.01" />
+                    <path d="M5 19h14a2 2 0 0 0 1.84 -2.75l-7.1 -12.25a2 2 0 0 0 -3.5 0l-7.1 12.25a2 2 0 0 0 1.75 2.75" />
+                </svg>
+                <strong>Form Data Found</strong>
+            </div>
+            <p class="mb-3">We found some previously filled information for this form. Would you like to restore it?</p>
+            <div>
+                <button class="restore-btn" onclick="restoreFormData()">
+                    📋 Restore Previous Data
+                </button>
+                <button class="clear-btn" onclick="clearPreviousData()">
+                    🗑️ Start Fresh
+                </button>
+            </div>
         </div>
         
         <form method="post" class="card form-card" id="healthForm">
@@ -232,17 +294,19 @@
     
     <script src="https://unpkg.com/@tabler/core@latest/dist/js/tabler.min.js"></script>
     <script>
-        // FIXED: SocketIO connection for live progress with better error handling
+        // ENHANCED: Form state restoration with SocketIO
         const socket = io();
         const token = "{{ token }}";
         let completedFields = new Set();
-        const totalFields = 12; // Total required fields
+        const totalFields = 12;
         let isConnected = false;
         let connectionAttempts = 0;
         const maxConnectionAttempts = 5;
+        let hasRestoredData = false;
+        let previousFormData = {};
         
         // Debouncing variables
-        let updateQueue = new Map(); // Store pending updates
+        let updateQueue = new Map();
         let updateTimer = null;
         let typingTimer = null;
         
@@ -255,8 +319,8 @@
             connectionAttempts = 0;
             updateConnectionStatus(true);
             
-            // Send initial form started event
-            sendUpdate('form_started', 'true');
+            // Request existing form progress immediately
+            requestFormProgress();
         });
         
         socket.on('disconnect', function() {
@@ -264,13 +328,12 @@
             isConnected = false;
             updateConnectionStatus(false);
             
-            // Attempt reconnection
             if (connectionAttempts < maxConnectionAttempts) {
                 connectionAttempts++;
                 console.log(`🔄 Attempting reconnection ${connectionAttempts}/${maxConnectionAttempts}...`);
                 setTimeout(() => {
                     socket.connect();
-                }, 2000 * connectionAttempts); // Exponential backoff
+                }, 2000 * connectionAttempts);
             }
         });
         
@@ -280,9 +343,140 @@
             updateConnectionStatus(false);
         });
         
-        socket.on('error', function(error) {
-            console.error('❌ Socket error:', error);
+        // NEW: Handle form progress response
+        socket.on('form_progress_response', function(data) {
+            console.log('📄 Received form progress:', data);
+            if (data.success && data.progress && data.progress.completed_fields) {
+                previousFormData = data.progress.completed_fields;
+                
+                // Check if there's meaningful data to restore
+                const meaningfulFields = Object.keys(previousFormData).filter(key => {
+                    const value = previousFormData[key];
+                    return value && value.toString().trim() !== '' && 
+                           key !== 'form_started' && key !== 'form_submitted';
+                });
+                
+                if (meaningfulFields.length > 0) {
+                    console.log(`💾 Found ${meaningfulFields.length} fields to restore:`, meaningfulFields);
+                    showRestorationNotice();
+                } else {
+                    console.log('🆕 No previous data found, starting fresh');
+                    sendUpdate('form_started', 'true');
+                }
+            } else {
+                console.log('🆕 No previous progress found, starting fresh');
+                sendUpdate('form_started', 'true');
+            }
         });
+        
+        function requestFormProgress() {
+            console.log('📡 Requesting form progress...');
+            socket.emit('get_form_progress', { token: token });
+        }
+        
+        function showRestorationNotice() {
+            const notice = document.getElementById('restorationNotice');
+            notice.style.display = 'block';
+            
+            // Auto-hide after 15 seconds if no action taken
+            setTimeout(() => {
+                if (notice.style.display !== 'none') {
+                    notice.style.display = 'none';
+                    console.log('⏰ Auto-starting fresh after timeout');
+                    sendUpdate('form_started', 'true');
+                }
+            }, 15000);
+        }
+        
+        function restoreFormData() {
+            console.log('🔄 Restoring form data...', previousFormData);
+            hasRestoredData = true;
+            
+            // Hide notice
+            document.getElementById('restorationNotice').style.display = 'none';
+            
+            // Restore each field
+            Object.keys(previousFormData).forEach(fieldName => {
+                const value = previousFormData[fieldName];
+                if (value && value.toString().trim() !== '' && 
+                    fieldName !== 'form_started' && fieldName !== 'form_submitted') {
+                    
+                    const element = document.querySelector(`[data-field="${fieldName}"]`);
+                    if (element) {
+                        element.value = value;
+                        element.classList.add('field-restored');
+                        completedFields.add(fieldName);
+                        
+                        console.log(`✅ Restored ${fieldName}: ${value}`);
+                        
+                        // Handle special cases
+                        if (fieldName === 'existing_insurance') {
+                            toggleInsuranceFields(value);
+                        }
+                    }
+                }
+            });
+            
+            // Update progress immediately
+            updateProgressDisplay();
+            
+            // Send restoration notification
+            sendUpdate('form_restored', 'true');
+            
+            // Show success message
+            showNotification('✅ Previous data restored successfully!', 'success');
+        }
+        
+        function clearPreviousData() {
+            console.log('🗑️ Clearing previous data and starting fresh');
+            hasRestoredData = false;
+            previousFormData = {};
+            
+            // Hide notice
+            document.getElementById('restorationNotice').style.display = 'none';
+            
+            // Clear all form fields
+            document.querySelectorAll('[data-field]').forEach(element => {
+                if (element.type === 'number' && element.name === 'number_of_members') {
+                    element.value = '1'; // Keep default value
+                } else if (element.name === 'current_coverage') {
+                    element.value = '0'; // Keep default value
+                } else {
+                    element.value = '';
+                }
+                element.classList.remove('field-completed', 'field-restored');
+            });
+            
+            // Reset progress
+            completedFields.clear();
+            updateProgressDisplay();
+            
+            // Send fresh start notification
+            sendUpdate('form_started', 'true');
+            
+            // Show success message
+            showNotification('🆕 Starting with a fresh form!', 'info');
+        }
+        
+        function showNotification(message, type = 'info') {
+            // Create notification element
+            const notification = document.createElement('div');
+            notification.className = `alert alert-${type} alert-dismissible`;
+            notification.style.cssText = 'position: fixed; top: 80px; right: 20px; z-index: 2000; min-width: 300px;';
+            notification.innerHTML = `
+                <div>${message}</div>
+                <button type="button" class="btn-close" onclick="this.parentElement.remove()"></button>
+            `;
+            
+            document.body.appendChild(notification);
+            
+            // Auto-remove after 3 seconds
+            setTimeout(() => {
+                if (notification.parentElement) {
+                    notification.remove();
+                }
+            }, 3000);
+        }
         
         function updateConnectionStatus(connected) {
             const statusEl = document.getElementById('connectionStatus');
@@ -299,7 +493,6 @@
             const indicator = document.getElementById('typingIndicator');
             indicator.style.display = 'block';
             
-            // Hide after 2 seconds
             clearTimeout(typingTimer);
             typingTimer = setTimeout(() => {
                 indicator.style.display = 'none';
@@ -315,38 +508,30 @@
                     progress_percentage: Math.min(100, (completedFields.size / totalFields) * 100),
                     completed_fields_count: completedFields.size,
                     total_fields: totalFields,
-                    timestamp: new Date().toISOString()
+                    timestamp: new Date().toISOString(),
+                    restored: hasRestoredData
                 };
                 
                 socket.emit('form_field_update', updateData);
                 console.log('📡 Update sent:', fieldName, '=', fieldValue);
             } else {
                 console.warn('⚠️ Not connected, queuing update:', fieldName, '=', fieldValue);
-                // Store in queue for when connection is restored
                 updateQueue.set(fieldName, fieldValue);
             }
         }
         
         function queueUpdate(fieldName, fieldValue) {
-            // Add to queue
             updateQueue.set(fieldName, fieldValue);
-            
-            // Show typing indicator
             showTypingIndicator();
             
-            // Clear existing timer
             if (updateTimer) {
                 clearTimeout(updateTimer);
             }
             
-            // Set new timer to send updates after 500ms of no activity
             updateTimer = setTimeout(() => {
-                // Send all queued updates
                 for (const [field, value] of updateQueue) {
                     sendUpdate(field, value);
                 }
-                
-                // Clear queue
                 updateQueue.clear();
                 updateTimer = null;
             }, 500);
@@ -362,39 +547,34 @@
             if (fieldValue && fieldValue.trim() !== '') {
                 completedFields.add(fieldName);
                 element.classList.add('field-completed');
+                element.classList.remove('field-restored'); // Remove restoration styling
             } else {
                 completedFields.delete(fieldName);
-                element.classList.remove('field-completed');
+                element.classList.remove('field-completed', 'field-restored');
             }
             
-            // Calculate progress
+            updateProgressDisplay();
+            queueUpdate(fieldName, fieldValue);
+        }
+        
+        function updateProgressDisplay() {
             const percentage = Math.min(100, (completedFields.size / totalFields) * 100);
-            
-            // Update progress bar immediately
             document.getElementById('progressFill').style.width = percentage + '%';
             document.getElementById('progressText').textContent = Math.round(percentage) + '% Complete';
-            
-            // Queue the update to send to server (debounced)
-            queueUpdate(fieldName, fieldValue);
         }
         
         function toggleInsuranceFields(value) {
             const detailsDiv = document.getElementById('insurance-details');
             if (value === 'Yes') {
                 detailsDiv.style.display = 'block';
-                document.querySelector('input[name="current_coverage"]').required = false; // Optional field
-                document.querySelector('select[name="port_policy"]').required = false; // Optional field
             } else {
                 detailsDiv.style.display = 'none';
-                document.querySelector('input[name="current_coverage"]').required = false;
-                document.querySelector('select[name="port_policy"]').required = false;
             }
             
-            // Update progress for the insurance selection
             updateProgress(document.querySelector('select[name="existing_insurance"]'));
         }
         
-        // FIXED: Enhanced event listeners setup
+        // Enhanced event listeners setup
         document.addEventListener('DOMContentLoaded', function() {
             console.log('🎯 Setting up form field listeners');
             
@@ -404,26 +584,22 @@
             formElements.forEach((element, index) => {
                 console.log(`📝 Setting up field ${index + 1}:`, element.dataset.field);
                 
-                // For text inputs - use input event with debouncing
                 if (element.type === 'text' || element.type === 'email' || element.type === 'tel' || element.type === 'number') {
                     element.addEventListener('input', function() {
                         updateProgress(this);
                     });
                     
-                    // Also listen for paste events
                     element.addEventListener('paste', function() {
                         setTimeout(() => {
                             updateProgress(this);
-                        }, 100); // Small delay to allow paste to complete
+                        }, 100);
                     });
                 }
                 
-                // For selects and immediate changes - use change event
                 element.addEventListener('change', function() {
                     updateProgress(this);
                 });
                 
-                // For focus events - send immediate update if field has value
                 element.addEventListener('focus', function() {
                     if (this.value && this.value.trim() !== '') {
                         sendUpdate(this.dataset.field + '_focused', this.value);
@@ -443,7 +619,6 @@
         document.getElementById('healthForm').addEventListener('submit', function(e) {
             console.log('📤 Form being submitted');
             
-            // Send any pending updates immediately
             if (updateTimer) {
                 clearTimeout(updateTimer);
                 for (const [field, value] of updateQueue) {
@@ -452,10 +627,8 @@
                 updateQueue.clear();
             }
             
-            // Send form submission event
             sendUpdate('form_submitted', 'true');
             
-            // Small delay to ensure the update is sent before form submission
             e.preventDefault();
             setTimeout(() => {
                 document.getElementById('healthForm').submit();
@@ -464,7 +637,6 @@
         
         // Handle connection restoration
         socket.on('connect', function() {
-            // Send any queued updates when connection is restored
             if (updateQueue.size > 0) {
                 console.log('🔄 Sending queued updates after reconnection');
                 for (const [field, value] of updateQueue) {
@@ -474,9 +646,9 @@
             }
         });
         
-        // Debug: Log socket events (remove in production)
+        // Debug logging
         socket.onAny((event, ...args) => {
-            if (event !== 'progress_update') { // Avoid spam
+            if (event !== 'progress_update') {
                 console.log('🔍 Socket event:', event, args);
             }
         });
