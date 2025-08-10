@@ -1,5 +1,5 @@
 # services/live_progress_service.py
-# Live form progress tracking service - FIXED for Flask context
+# FIXED Live form progress tracking service - corrected field counting and form filtering
 
 import redis
 import json
@@ -43,8 +43,12 @@ class LiveProgressService:
         """Generate Redis key for form progress"""
         return f"form_progress:{token}"
     
-    def update_form_progress(self, token, field_name, field_value, total_fields=13):
-        """Update form progress in Redis"""
+    def get_agent_forms_key(self, agent_id):
+        """Generate Redis key for agent's active forms list"""
+        return f"agent_forms:{agent_id}"
+    
+    def update_form_progress(self, token, field_name, field_value, total_fields=12):
+        """Update form progress in Redis and track in agent's active forms"""
         if not self._ensure_redis():
             print("❌ Redis not available for progress update")
             return None
@@ -63,10 +67,26 @@ class LiveProgressService:
                     'last_update': None,
                     'customer_info': {},
                     'percentage': 0,
-                    'status': 'active'
+                    'status': 'active',
+                    'token': token,
+                    'agent_id': None  # Will be set when available
                 }
             
-            # Update field data
+            # Skip form_started as it's not a real field
+            if field_name == 'form_started':
+                progress_data['status'] = 'active'
+                progress_data['last_update'] = self._get_current_timestamp()
+                # Store in Redis with 2 hour expiry
+                self.redis_client.setex(progress_key, 7200, json.dumps(progress_data))
+                
+                # Update agent's active forms list if agent_id is available
+                if progress_data.get('agent_id'):
+                    self._update_agent_active_forms(progress_data['agent_id'], token, progress_data)
+                
+                print(f"✅ Form session started for token: {token}")
+                return progress_data
+            
+            # Update field data (only for real form fields)
             progress_data['completed_fields'][field_name] = field_value
             progress_data['last_update'] = self._get_current_timestamp()
             
@@ -78,14 +98,27 @@ class LiveProgressService:
             elif field_name == 'mobile' and field_value:
                 progress_data['customer_info']['mobile'] = field_value
             
-            # Calculate progress percentage (only count non-empty fields)
-            completed_count = len([v for v in progress_data['completed_fields'].values() if v and str(v).strip()])
+            # Calculate progress percentage (only count non-empty fields, excluding special fields)
+            actual_fields = {k: v for k, v in progress_data['completed_fields'].items() 
+                           if k not in ['form_started', 'form_submitted'] and v and str(v).strip()}
+            completed_count = len(actual_fields)
             progress_data['percentage'] = min(100, (completed_count / total_fields) * 100)
+            
+            # Update status based on progress - keep as active unless explicitly completed
+            if field_name == 'form_submitted':
+                progress_data['status'] = 'completed'
+                progress_data['percentage'] = 100
+            elif completed_count > 0:
+                progress_data['status'] = 'active'
             
             # Store in Redis with 2 hour expiry
             self.redis_client.setex(progress_key, 7200, json.dumps(progress_data))
             
-            print(f"✅ Progress updated for {token}: {completed_count}/{total_fields} fields ({progress_data['percentage']:.1f}%)")
+            # Update agent's active forms list if agent_id is available
+            if progress_data.get('agent_id'):
+                self._update_agent_active_forms(progress_data['agent_id'], token, progress_data)
+            
+            print(f"✅ Progress updated for {token}: {completed_count}/{total_fields} fields ({progress_data['percentage']:.1f}%) - Status: {progress_data['status']}")
             
             return progress_data
             
@@ -93,6 +126,51 @@ class LiveProgressService:
             self.logger.error(f"Error updating form progress: {e}")
             print(f"❌ Error updating progress: {e}")
             return None
+    
+    def _update_agent_active_forms(self, agent_id, token, progress_data):
+        """Update agent's active forms list in Redis"""
+        try:
+            agent_forms_key = self.get_agent_forms_key(agent_id)
+            
+            # Get current active forms for agent
+            active_forms_data = self.redis_client.get(agent_forms_key)
+            if active_forms_data:
+                active_forms = json.loads(active_forms_data)
+            else:
+                active_forms = {}
+            
+            # Update or add this form
+            active_forms[token] = {
+                'token': token,
+                'agent_id': agent_id,
+                'percentage': progress_data.get('percentage', 0),
+                'customer_info': progress_data.get('customer_info', {}),
+                'last_update': progress_data.get('last_update'),
+                'status': progress_data.get('status', 'active'),
+                'completed_fields': progress_data.get('completed_fields', {})
+            }
+            
+            # Clean up very old forms (older than 2 hours)
+            current_time = datetime.utcnow()
+            forms_to_remove = []
+            for form_token, form_data in active_forms.items():
+                if form_data.get('last_update'):
+                    try:
+                        last_update = datetime.fromisoformat(form_data['last_update'])
+                        if (current_time - last_update).total_seconds() > 7200:  # 2 hours
+                            forms_to_remove.append(form_token)
+                    except:
+                        pass
+            
+            for form_token in forms_to_remove:
+                active_forms.pop(form_token, None)
+            
+            # Store updated list with 3 hour expiry
+            self.redis_client.setex(agent_forms_key, 10800, json.dumps(active_forms))
+            print(f"📊 Updated agent {agent_id} forms list: {len(active_forms)} forms")
+            
+        except Exception as e:
+            self.logger.error(f"Error updating agent active forms: {e}")
     
     def get_form_progress(self, token):
         """Get current form progress"""
@@ -112,7 +190,7 @@ class LiveProgressService:
         return None
     
     def start_form_session(self, token, agent_id):
-        """Initialize form progress tracking"""
+        """Initialize form progress tracking with agent_id"""
         if not self._ensure_redis():
             print("❌ Redis not available for starting session")
             return
@@ -124,13 +202,17 @@ class LiveProgressService:
             existing_data = self.redis_client.get(progress_key)
             if existing_data:
                 progress_data = json.loads(existing_data)
-                # Update agent_id if not set
-                if not progress_data.get('agent_id'):
+                # Update agent_id if not set or different
+                if not progress_data.get('agent_id') or progress_data.get('agent_id') != str(agent_id):
                     progress_data['agent_id'] = str(agent_id)
+                    progress_data['last_update'] = self._get_current_timestamp()
                     self.redis_client.setex(progress_key, 7200, json.dumps(progress_data))
+                    # Update agent's active forms list
+                    self._update_agent_active_forms(str(agent_id), token, progress_data)
                     print(f"✅ Updated existing session with agent_id: {agent_id}")
                 return
             
+            # Create new session
             initial_data = {
                 'completed_fields': {},
                 'start_time': self._get_current_timestamp(),
@@ -144,12 +226,16 @@ class LiveProgressService:
             
             # Store for 2 hours
             self.redis_client.setex(progress_key, 7200, json.dumps(initial_data))
+            
+            # Add to agent's active forms
+            self._update_agent_active_forms(str(agent_id), token, initial_data)
+            
             print(f"✅ Form session started for token: {token} with agent_id: {agent_id}")
             
         except Exception as e:
             self.logger.error(f"Error starting form session: {e}")
             print(f"❌ Error starting session: {e}")
-            
+    
     def ensure_agent_id_in_progress(self, token, agent_id):
         """Ensure agent_id is set in existing progress data"""
         if not self._ensure_redis():
@@ -161,10 +247,12 @@ class LiveProgressService:
             
             if existing_data:
                 progress_data = json.loads(existing_data)
-                if not progress_data.get('agent_id'):
+                if not progress_data.get('agent_id') or progress_data.get('agent_id') != str(agent_id):
                     progress_data['agent_id'] = str(agent_id)
                     progress_data['last_update'] = self._get_current_timestamp()
                     self.redis_client.setex(progress_key, 7200, json.dumps(progress_data))
+                    # Update agent's active forms list
+                    self._update_agent_active_forms(str(agent_id), token, progress_data)
                     print(f"✅ Added agent_id {agent_id} to existing progress for token: {token}")
                     return True
             
@@ -175,7 +263,7 @@ class LiveProgressService:
             return False
     
     def complete_form_session(self, token):
-        """Mark form as completed"""
+        """Mark form as completed and update agent's list"""
         if not self._ensure_redis():
             return
         
@@ -187,19 +275,66 @@ class LiveProgressService:
                 progress_data['status'] = 'completed'
                 progress_data['percentage'] = 100
                 progress_data['completion_time'] = self._get_current_timestamp()
+                progress_data['last_update'] = self._get_current_timestamp()
                 
                 # Store for 24 hours after completion
                 self.redis_client.setex(progress_key, 86400, json.dumps(progress_data))
+                
+                # Update agent's active forms list
+                if progress_data.get('agent_id'):
+                    self._update_agent_active_forms(progress_data['agent_id'], token, progress_data)
+                
                 print(f"✅ Form session completed for token: {token}")
                 
         except Exception as e:
             self.logger.error(f"Error completing form session: {e}")
     
     def get_agent_active_forms(self, agent_id):
-        """Get all active forms for an agent"""
+        """Get all active forms for an agent from Redis"""
         if not self._ensure_redis():
             return []
         
+        try:
+            agent_forms_key = self.get_agent_forms_key(agent_id)
+            active_forms_data = self.redis_client.get(agent_forms_key)
+            
+            if active_forms_data:
+                active_forms_dict = json.loads(active_forms_data)
+                
+                # Convert to list and include ALL forms (active and recently completed)
+                active_forms_list = []
+                for token, form_data in active_forms_dict.items():
+                    # Include all forms except very old completed ones
+                    include_form = True
+                    
+                    # Filter out very old completed forms (older than 10 minutes)
+                    if form_data.get('status') == 'completed':
+                        try:
+                            if form_data.get('completion_time') or form_data.get('last_update'):
+                                last_time = form_data.get('completion_time') or form_data.get('last_update')
+                                last_update = datetime.fromisoformat(last_time)
+                                if (datetime.utcnow() - last_update).total_seconds() > 600:  # 10 minutes
+                                    include_form = False
+                        except:
+                            pass
+                    
+                    if include_form:
+                        form_data['token'] = token  # Ensure token is set
+                        active_forms_list.append(form_data)
+                
+                print(f"✅ Found {len(active_forms_list)} forms for agent {agent_id} (from agent list)")
+                return active_forms_list
+            
+            # Fallback: Search Redis keys (less efficient but more reliable)
+            return self._get_agent_forms_from_all_keys(agent_id)
+            
+        except Exception as e:
+            self.logger.error(f"Error getting agent active forms: {e}")
+            print(f"❌ Error getting active forms: {e}")
+            return []
+    
+    def _get_agent_forms_from_all_keys(self, agent_id):
+        """Fallback method: Search all form progress keys for agent's forms"""
         try:
             # Search for all form progress keys
             keys = self.redis_client.keys("form_progress:*")
@@ -209,20 +344,17 @@ class LiveProgressService:
                 progress_data = self.redis_client.get(key)
                 if progress_data:
                     data = json.loads(progress_data)
-                    if (data.get('agent_id') == str(agent_id) and 
-                        data.get('status') in ['started', 'active'] and
-                        data.get('percentage', 0) < 100):
-                        
+                    if data.get('agent_id') == str(agent_id):
+                        # Include all forms - let the frontend decide what to show
                         token = key.decode().replace('form_progress:', '')
                         data['token'] = token
                         active_forms.append(data)
             
-            print(f"✅ Found {len(active_forms)} active forms for agent {agent_id}")
+            print(f"✅ Fallback search found {len(active_forms)} forms for agent {agent_id}")
             return active_forms
             
         except Exception as e:
-            self.logger.error(f"Error getting agent active forms: {e}")
-            print(f"❌ Error getting active forms: {e}")
+            self.logger.error(f"Error in fallback search: {e}")
             return []
     
     def _get_current_timestamp(self):
@@ -254,7 +386,7 @@ def register_socketio_events(socketio):
             print(f"👤 Agent {current_user.username} joined room: {room}")
             emit('joined_room', {'room': room, 'message': 'Successfully joined agent room'})
             
-            # Send current active forms
+            # Send current active forms immediately
             active_forms = progress_service.get_agent_active_forms(current_user.id)
             emit('active_forms_update', {'forms': active_forms})
         else:
@@ -278,8 +410,8 @@ def register_socketio_events(socketio):
         print(f"📝 Form update received - Token: {token}, Field: {field_name}, Value: {field_value}")
         
         if token and field_name:
-            # Update progress
-            progress_data = progress_service.update_form_progress(token, field_name, field_value)
+            # Update progress with correct total fields count
+            progress_data = progress_service.update_form_progress(token, field_name, field_value, total_fields=12)
             
             if progress_data and progress_data.get('agent_id'):
                 # Emit to agent's room
@@ -292,12 +424,18 @@ def register_socketio_events(socketio):
                     'timestamp': progress_data.get('last_update')
                 }, room=agent_room)
                 
+                # Also send updated active forms list
+                active_forms = progress_service.get_agent_active_forms(progress_data['agent_id'])
+                socketio.emit('active_forms_update', {'forms': active_forms}, room=agent_room)
+                
                 print(f"📡 Progress update sent to room: {agent_room}")
             else:
-                # Try to get agent_id from form link if not in progress data
+                # FIXED: Better fallback to find agent_id
                 print(f"⚠️ No agent_id in progress data, trying to find from form link...")
                 try:
                     from models.forms import get_form_links_collection
+                    from bson import ObjectId
+                    
                     form_links = get_form_links_collection()
                     link_data = form_links.find_one({'token': token})
                     
@@ -318,6 +456,11 @@ def register_socketio_events(socketio):
                                     'progress_data': updated_progress,
                                     'timestamp': updated_progress.get('last_update')
                                 }, room=agent_room)
+                                
+                                # Also send updated active forms list
+                                active_forms = progress_service.get_agent_active_forms(agent_id)
+                                socketio.emit('active_forms_update', {'forms': active_forms}, room=agent_room)
+                                
                                 print(f"📡 Progress update sent to room: {agent_room} (after adding agent_id)")
                     else:
                         print(f"❌ Could not find agent_id for token: {token}")
@@ -332,7 +475,7 @@ def register_socketio_events(socketio):
         if current_user.is_authenticated and current_user.is_agent():
             active_forms = progress_service.get_agent_active_forms(current_user.id)
             emit('active_forms_update', {'forms': active_forms})
-            print(f"📋 Sent {len(active_forms)} active forms to agent {current_user.username}")
+            print(f"📋 Sent {len(active_forms)} forms to agent {current_user.username}")
         else:
             emit('error', {'message': 'Unauthorized: Only agents can get active forms'})
     

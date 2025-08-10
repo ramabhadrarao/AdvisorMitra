@@ -232,12 +232,14 @@
     
     <script src="https://unpkg.com/@tabler/core@latest/dist/js/tabler.min.js"></script>
     <script>
-        // SocketIO connection for live progress
+        // FIXED: SocketIO connection for live progress with better error handling
         const socket = io();
         const token = "{{ token }}";
         let completedFields = new Set();
         const totalFields = 12; // Total required fields
         let isConnected = false;
+        let connectionAttempts = 0;
+        const maxConnectionAttempts = 5;
         
         // Debouncing variables
         let updateQueue = new Map(); // Store pending updates
@@ -246,10 +248,11 @@
         
         console.log('🚀 Initializing form with token:', token);
         
-        // Connection handlers
+        // Connection handlers with retry logic
         socket.on('connect', function() {
             console.log('✅ Connected to server');
             isConnected = true;
+            connectionAttempts = 0;
             updateConnectionStatus(true);
             
             // Send initial form started event
@@ -258,6 +261,21 @@
         
         socket.on('disconnect', function() {
             console.log('❌ Disconnected from server');
+            isConnected = false;
+            updateConnectionStatus(false);
+            
+            // Attempt reconnection
+            if (connectionAttempts < maxConnectionAttempts) {
+                connectionAttempts++;
+                console.log(`🔄 Attempting reconnection ${connectionAttempts}/${maxConnectionAttempts}...`);
+                setTimeout(() => {
+                    socket.connect();
+                }, 2000 * connectionAttempts); // Exponential backoff
+            }
+        });
+        
+        socket.on('connect_error', function(error) {
+            console.error('❌ Connection error:', error);
             isConnected = false;
             updateConnectionStatus(false);
         });
@@ -290,15 +308,22 @@
         
         function sendUpdate(fieldName, fieldValue) {
             if (isConnected) {
-                socket.emit('form_field_update', {
+                const updateData = {
                     token: token,
                     field_name: fieldName,
                     field_value: fieldValue,
                     progress_percentage: Math.min(100, (completedFields.size / totalFields) * 100),
                     completed_fields_count: completedFields.size,
-                    total_fields: totalFields
-                });
+                    total_fields: totalFields,
+                    timestamp: new Date().toISOString()
+                };
+                
+                socket.emit('form_field_update', updateData);
                 console.log('📡 Update sent:', fieldName, '=', fieldValue);
+            } else {
+                console.warn('⚠️ Not connected, queuing update:', fieldName, '=', fieldValue);
+                // Store in queue for when connection is restored
+                updateQueue.set(fieldName, fieldValue);
             }
         }
         
@@ -369,7 +394,7 @@
             updateProgress(document.querySelector('select[name="existing_insurance"]'));
         }
         
-        // Add event listeners to all form fields
+        // FIXED: Enhanced event listeners setup
         document.addEventListener('DOMContentLoaded', function() {
             console.log('🎯 Setting up form field listeners');
             
@@ -384,6 +409,13 @@
                     element.addEventListener('input', function() {
                         updateProgress(this);
                     });
+                    
+                    // Also listen for paste events
+                    element.addEventListener('paste', function() {
+                        setTimeout(() => {
+                            updateProgress(this);
+                        }, 100); // Small delay to allow paste to complete
+                    });
                 }
                 
                 // For selects and immediate changes - use change event
@@ -391,7 +423,7 @@
                     updateProgress(this);
                 });
                 
-                // For focus events - send immediate update
+                // For focus events - send immediate update if field has value
                 element.addEventListener('focus', function() {
                     if (this.value && this.value.trim() !== '') {
                         sendUpdate(this.dataset.field + '_focused', this.value);
@@ -422,9 +454,27 @@
             
             // Send form submission event
             sendUpdate('form_submitted', 'true');
+            
+            // Small delay to ensure the update is sent before form submission
+            e.preventDefault();
+            setTimeout(() => {
+                document.getElementById('healthForm').submit();
+            }, 500);
         });
         
-        // Debug: Log socket events
+        // Handle connection restoration
+        socket.on('connect', function() {
+            // Send any queued updates when connection is restored
+            if (updateQueue.size > 0) {
+                console.log('🔄 Sending queued updates after reconnection');
+                for (const [field, value] of updateQueue) {
+                    sendUpdate(field, value);
+                }
+                updateQueue.clear();
+            }
+        });
+        
+        // Debug: Log socket events (remove in production)
         socket.onAny((event, ...args) => {
             if (event !== 'progress_update') { // Avoid spam
                 console.log('🔍 Socket event:', event, args);

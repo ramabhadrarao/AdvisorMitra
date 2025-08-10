@@ -1,5 +1,5 @@
 # controllers/forms/health_insurance_controller.py
-# FIXED - Properly handle agent_id in form sessions
+# FIXED - Properly handle agent_id in form sessions and ensure live progress tracking
 
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, send_file
 from flask_login import login_required, current_user
@@ -171,24 +171,34 @@ def public_form(token):
         else:
             flash(error, 'danger')
     
-    # Start form session for progress tracking with correct agent_id
+    # FIXED: Start form session for progress tracking with correct agent_id
     agent_id = str(link.agent_id) if hasattr(link, 'agent_id') and link.agent_id else None
-    if agent_id:
-        progress_service.start_form_session(token, agent_id)
-        print(f"🎯 Started form session for token: {token} with agent_id: {agent_id}")
-    else:
-        print(f"⚠️ No agent_id found in link for token: {token}")
-        # Try to get agent_id from link data directly
+    
+    # Try multiple ways to get agent_id
+    if not agent_id:
         try:
             from models.forms import get_form_links_collection
             form_links = get_form_links_collection()
             link_data = form_links.find_one({'token': token})
             if link_data and link_data.get('agent_id'):
                 agent_id = str(link_data['agent_id'])
-                progress_service.start_form_session(token, agent_id)
-                print(f"🎯 Started form session from DB lookup for token: {token} with agent_id: {agent_id}")
+                print(f"🎯 Found agent_id from DB lookup: {agent_id}")
         except Exception as e:
             print(f"❌ Error getting agent_id from DB: {e}")
+    
+    # If still no agent_id, try from link object directly
+    if not agent_id and hasattr(link, 'to_dict'):
+        link_dict = link.to_dict()
+        if link_dict.get('agent_id'):
+            agent_id = str(link_dict['agent_id'])
+            print(f"🎯 Found agent_id from link dict: {agent_id}")
+    
+    # Start progress tracking with agent_id
+    if agent_id:
+        progress_service.start_form_session(token, agent_id)
+        print(f"✅ Started form session for token: {token} with agent_id: {agent_id}")
+    else:
+        print(f"⚠️ No agent_id found for token: {token}")
     
     # Cities list (will be translated)
     cities = [

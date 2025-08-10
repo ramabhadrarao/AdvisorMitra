@@ -77,6 +77,16 @@
         0% { background-color: #fff3cd; }
         100% { background-color: transparent; }
     }
+    .form-completed {
+        border-left-color: #28a745 !important;
+        background-color: #f8fff9;
+    }
+    .form-active {
+        border-left-color: #206bc4 !important;
+    }
+    .form-started {
+        border-left-color: #ffc107 !important;
+    }
 </style>
 {% endblock %}
 
@@ -111,6 +121,64 @@
 
 <div class="page-body">
     <div class="container-xl">
+        <!-- Statistics Row -->
+        <div class="row mb-4">
+            <div class="col-sm-6 col-lg-3">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <div class="subheader">Active Forms</div>
+                        </div>
+                        <div class="h1 mb-3" id="activeCount">0</div>
+                        <div class="d-flex mb-2">
+                            <div>Currently being filled</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-lg-3">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <div class="subheader">Completed Today</div>
+                        </div>
+                        <div class="h1 mb-3" id="completedCount">0</div>
+                        <div class="d-flex mb-2">
+                            <div>Forms submitted</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-lg-3">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <div class="subheader">Average Progress</div>
+                        </div>
+                        <div class="h1 mb-3" id="avgProgress">0%</div>
+                        <div class="d-flex mb-2">
+                            <div>Across all forms</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-lg-3">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <div class="subheader">Connection Status</div>
+                        </div>
+                        <div class="h1 mb-3" id="connectionStatus">
+                            <span class="badge bg-secondary">Connecting</span>
+                        </div>
+                        <div class="d-flex mb-2">
+                            <div>Real-time tracking</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Debug Info (hidden by default) -->
         <div class="card mb-3" id="debugInfo" style="display: none;">
             <div class="card-header">
@@ -118,7 +186,7 @@
                 <button class="btn btn-sm btn-secondary" onclick="toggleDebug()">Toggle Debug</button>
             </div>
             <div class="card-body">
-                <div id="debugContent"></div>
+                <div id="debugContent" style="max-height: 300px; overflow-y: auto; font-family: monospace; font-size: 12px;"></div>
             </div>
         </div>
 
@@ -228,18 +296,22 @@ socket.on('progress_update', function(data) {
 // Active forms update
 socket.on('active_forms_update', function(data) {
     console.log('📋 Active forms update:', data);
-    updateDebugInfo('📋 Received ' + data.forms.length + ' active forms');
+    updateDebugInfo('📋 Received ' + data.forms.length + ' forms');
     displayActiveForms(data.forms);
 });
 
 function updateConnectionStatus(connected, message) {
     const indicator = document.getElementById('connectionIndicator');
+    const statusBadge = document.getElementById('connectionStatus');
+    
     if (connected) {
         indicator.className = 'connection-indicator connected';
         indicator.innerHTML = '🟢 ' + message;
+        statusBadge.innerHTML = '<span class="badge bg-success">Connected</span>';
     } else {
         indicator.className = 'connection-indicator disconnected';
         indicator.innerHTML = '🔴 ' + message;
+        statusBadge.innerHTML = '<span class="badge bg-danger">Disconnected</span>';
     }
 }
 
@@ -249,22 +321,43 @@ function displayActiveForms(forms) {
     
     console.log('📊 Displaying', forms.length, 'forms');
     
+    // Update statistics
+    updateStatistics(forms);
+    
     if (!forms || forms.length === 0) {
         container.innerHTML = '';
         emptyState.style.display = 'block';
-        updateDebugInfo('📊 No active forms to display');
+        updateDebugInfo('📊 No forms to display');
         return;
     }
     
     emptyState.style.display = 'none';
     activeForms = {};
     
+    // Sort forms by last update (most recent first)
+    forms.sort((a, b) => {
+        const aTime = new Date(a.last_update || 0).getTime();
+        const bTime = new Date(b.last_update || 0).getTime();
+        return bTime - aTime;
+    });
+    
     container.innerHTML = forms.map(form => {
         activeForms[form.token] = form;
         return createFormCard(form);
     }).join('');
     
-    updateDebugInfo('📊 Displayed ' + forms.length + ' active forms');
+    updateDebugInfo('📊 Displayed ' + forms.length + ' forms');
+}
+
+function updateStatistics(forms) {
+    const activeCount = forms.filter(f => f.status === 'active' || f.status === 'started').length;
+    const completedCount = forms.filter(f => f.status === 'completed').length;
+    const totalProgress = forms.reduce((sum, f) => sum + (f.percentage || 0), 0);
+    const avgProgress = forms.length > 0 ? Math.round(totalProgress / forms.length) : 0;
+    
+    document.getElementById('activeCount').textContent = activeCount;
+    document.getElementById('completedCount').textContent = completedCount;
+    document.getElementById('avgProgress').textContent = avgProgress + '%';
 }
 
 function createFormCard(form) {
@@ -274,13 +367,32 @@ function createFormCard(form) {
     const percentage = Math.round(form.percentage || 0);
     const completedFields = Object.keys(form.completed_fields || {}).filter(key => {
         const value = form.completed_fields[key];
-        return value && value.toString().trim() !== '';
+        return value && value.toString().trim() !== '' && key !== 'form_started' && key !== 'form_submitted';
     }).length;
     const lastUpdate = form.last_update ? new Date(form.last_update).toLocaleTimeString() : 'Just started';
+    const status = form.status || 'started';
+    
+    // Determine card styling based on status
+    let statusBadge = '';
+    let cardClass = 'progress-card form-started';
+    
+    switch(status) {
+        case 'completed':
+            statusBadge = '<span class="badge bg-success">Completed</span>';
+            cardClass = 'progress-card form-completed';
+            break;
+        case 'active':
+            statusBadge = '<span class="badge bg-primary">Active</span>';
+            cardClass = 'progress-card form-active';
+            break;
+        default:
+            statusBadge = '<span class="badge bg-warning">Started</span>';
+            cardClass = 'progress-card form-started';
+    }
     
     return `
         <div class="col-md-6 col-lg-4 mb-4">
-            <div class="card progress-card" id="form-${form.token}">
+            <div class="card ${cardClass}" id="form-${form.token}">
                 <div class="card-status-top bg-${percentage < 30 ? 'danger' : percentage < 70 ? 'warning' : 'success'}"></div>
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-start mb-3">
@@ -291,7 +403,10 @@ function createFormCard(form) {
                                 ${customerMobile ? `📱 ${customerMobile}` : ''}
                             </p>
                         </div>
-                        <span class="badge bg-primary fs-6">${percentage}%</span>
+                        <div class="text-end">
+                            <div class="fs-1 text-primary">${percentage}%</div>
+                            ${statusBadge}
+                        </div>
                     </div>
                     
                     <div class="progress-bar mb-3">
