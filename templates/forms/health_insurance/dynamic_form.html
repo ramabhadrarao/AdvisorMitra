@@ -280,6 +280,24 @@
                     </div>
                 </div>
                 
+                <!-- Language Selection for PDF Report -->
+                <div class="mb-3">
+                    <label class="form-label required">{{ translations.fields.report_language if translations.fields.report_language else 'Preferred Report Language' }}</label>
+                    <select name="report_language" class="form-select" required data-field="report_language">
+                        <option value="">{{ translations.options.select }}</option>
+                        <option value="en" {% if language == 'en' %}selected{% endif %}>English</option>
+                        <option value="hi" {% if language == 'hi' %}selected{% endif %}>हिंदी (Hindi)</option>
+                        <option value="mr" {% if language == 'mr' %}selected{% endif %}>मराठी (Marathi)</option>
+                        <option value="gu" {% if language == 'gu' %}selected{% endif %}>ગુજરાતી (Gujarati)</option>
+                        <option value="te" {% if language == 'te' %}selected{% endif %}>తెలుగు (Telugu)</option>
+                        <option value="bn" {% if language == 'bn' %}selected{% endif %}>বাংলা (Bengali)</option>
+                        <option value="kn" {% if language == 'kn' %}selected{% endif %}>ಕನ್ನಡ (Kannada)</option>
+                        <option value="ta" {% if language == 'ta' %}selected{% endif %}>தமிழ் (Tamil)</option>
+                        <option value="ml" {% if language == 'ml' %}selected{% endif %}>മലയാളം (Malayalam)</option>
+                    </select>
+                    <small class="form-hint">{{ translations.fields.report_language_hint if translations.fields.report_language_hint else 'Your health insurance report will be generated in this language' }}</small>
+                </div>
+                
                 <div class="alert alert-info">
                     <h4 class="alert-title">{{ translations.privacy_title }}</h4>
                     <div class="text-muted">{{ translations.privacy_text }}</div>
@@ -298,7 +316,7 @@
         const socket = io();
         const token = "{{ token }}";
         let completedFields = new Set();
-        const totalFields = 12;
+        const totalFields = 13; // Updated to include report_language
         let isConnected = false;
         let connectionAttempts = 0;
         const maxConnectionAttempts = 5;
@@ -441,6 +459,8 @@
                     element.value = '1'; // Keep default value
                 } else if (element.name === 'current_coverage') {
                     element.value = '0'; // Keep default value
+                } else if (element.name === 'report_language') {
+                    element.value = '{{ language }}'; // Set to form's default language
                 } else {
                     element.value = '';
                 }

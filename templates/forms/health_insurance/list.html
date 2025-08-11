@@ -41,7 +41,8 @@
                             <th>City</th>
                             <th>Members</th>
                             <th>Submitted</th>
-                            <th>Language</th>
+                            <th>Form Language</th>
+                            <th>Report Language</th>
                             <th class="w-1"></th>
                         </tr>
                     </thead>
@@ -58,6 +59,21 @@
                                 <span class="badge bg-info">{{ form.language.upper() }}</span>
                             </td>
                             <td>
+                                {% set lang_map = {
+                                    'en': 'English',
+                                    'hi': 'Hindi',
+                                    'mr': 'Marathi',
+                                    'gu': 'Gujarati',
+                                    'te': 'Telugu',
+                                    'bn': 'Bengali',
+                                    'kn': 'Kannada',
+                                    'ta': 'Tamil',
+                                    'ml': 'Malayalam'
+                                } %}
+                                {% set report_lang = form.report_language if form.report_language else form.language %}
+                                <span class="badge bg-success">{{ lang_map.get(report_lang, report_lang.upper()) }}</span>
+                            </td>
+                            <td>
                                 <div class="btn-list flex-nowrap">
                                     <a href="{{ url_for('health_insurance.view_form', form_id=form.id) }}" class="btn btn-sm">
                                         View
@@ -65,7 +81,8 @@
                                     {% if current_user.agent_pdf_generated < current_user.agent_pdf_limit %}
                                         <a href="{{ url_for('health_insurance.generate_pdf_direct', form_id=form.id) }}" 
                                            class="btn btn-sm btn-success"
-                                           onclick="return confirmPDFGeneration(event)">
+                                           onclick="return confirmPDFGeneration(event)"
+                                           title="Generate PDF in {{ lang_map.get(report_lang, report_lang.upper()) }}">
                                             Generate PDF
                                         </a>
                                     {% else %}
@@ -139,7 +156,9 @@
 <script>
 function confirmPDFGeneration(event) {
     const remaining = {{ current_user.agent_pdf_limit - current_user.agent_pdf_generated }};
-    const message = `Are you sure you want to generate this PDF?\n\nThis will use 1 PDF credit.\nYou have ${remaining} PDF credits remaining.`;
+    const link = event.target;
+    const reportLang = link.getAttribute('title') || 'selected language';
+    const message = `Are you sure you want to generate this PDF?\n\nThis will use 1 PDF credit.\nYou have ${remaining} PDF credits remaining.\n\nThe PDF will be generated in ${reportLang}.`;
     
     if (!confirm(message)) {
         event.preventDefault();
@@ -147,7 +166,6 @@ function confirmPDFGeneration(event) {
     }
     
     // Show loading state
-    const link = event.target;
     const originalText = link.innerHTML;
     link.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Generating...';
     link.classList.add('disabled');

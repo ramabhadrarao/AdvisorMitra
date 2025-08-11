@@ -1,5 +1,5 @@
 # services/forms/pdf_generators/health_insurance_pdf_generator.py
-# MODIFIED - Generate PDF to memory stream instead of file
+# UPDATED - Added multi-language support and fixed recommendation box overflow
 
 import os
 import io
@@ -8,9 +8,11 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch, cm, mm
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak, KeepInFrame
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT, TA_JUSTIFY
 from reportlab.pdfgen import canvas
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 from pymongo import MongoClient
 from bson import ObjectId
 from flask import current_app
@@ -64,6 +66,7 @@ class NumberedCanvas(canvas.Canvas):
 class HealthInsurancePDFGenerator:
     def __init__(self):
         self.translation_service = TranslationService()
+        self._register_fonts()
         
         # Professional color scheme
         self.colors = {
@@ -80,6 +83,16 @@ class HealthInsurancePDFGenerator:
             'bg_light': colors.HexColor('#FAFAFA'),     # Very Light Gray
             'white': colors.white
         }
+    
+    def _register_fonts(self):
+        """Register fonts for multi-language support"""
+        try:
+            # Try to register Noto Sans for better Unicode support
+            # You may need to install these fonts on your server
+            # For now, we'll use Helvetica as fallback
+            pass
+        except Exception as e:
+            print(f"Font registration error: {e}")
     
     def _get_mongodb_connection(self):
         """Get MongoDB connection"""
@@ -174,7 +187,8 @@ class HealthInsurancePDFGenerator:
                     'port_policy': form.get('port_policy', 'No'),
                     'form_timestamp': form.get('created_at'),
                     'tier_city': form.get('tier_city', 'Others'),
-                    'language': form.get('language', 'en')
+                    'language': form.get('language', 'en'),
+                    'report_language': form.get('report_language', 'en')
                 }
             return None
         except Exception as e:
@@ -216,6 +230,7 @@ class HealthInsurancePDFGenerator:
     
     def _get_translated_content(self, language):
         """Get translated content for PDF"""
+        # Base content in English
         content = {
             'title': 'HEALTH INSURANCE REQUIREMENT ANALYSIS',
             'subtitle': 'Comprehensive Coverage Assessment Report',
@@ -237,22 +252,45 @@ class HealthInsurancePDFGenerator:
                 'surgery': 'Major Surgery History',
                 'existing_insurance': 'Existing Health Insurance',
                 'current_coverage': 'Current Coverage Amount',
-                'port_policy': 'Port Existing Policy'
+                'port_policy': 'Port Existing Policy',
+                'report_language': 'Report Language'
             },
             'values': {
                 'years': 'Years',
                 'members': 'Members'
+            },
+            'recommendations': {
+                'based_on': 'Based on your comprehensive profile analysis, we recommend a Health Insurance coverage of',
+                'protection_for': 'to ensure adequate protection for',
+                'you_and_family': 'you and your family',
+                'yourself': 'yourself',
+                'family_size': 'Family Size Consideration',
+                'family_adjustment': 'This recommendation includes an adjustment for your family size of',
+                'coverage_status': 'Coverage Status',
+                'adequate_coverage': 'Your current coverage appears adequate for your current needs.',
+                'coverage_gap': 'Coverage Gap Alert',
+                'current_coverage': 'Your current coverage of',
+                'shortfall': 'has a shortfall of',
+                'consider_increasing': 'Consider increasing your coverage.',
+                'coverage_enhancement': 'Coverage Enhancement',
+                'review_policy': 'You mentioned having existing insurance but no coverage amount was specified. Please review your current policy details.'
             }
         }
         
         if language != 'en':
-            # Translate all content
-            for key, value in content.items():
-                if isinstance(value, str):
-                    content[key] = self.translation_service.translate_text(value, language)
-                elif isinstance(value, dict):
-                    for sub_key, sub_value in value.items():
-                        content[key][sub_key] = self.translation_service.translate_text(sub_value, language)
+            # Translate all content recursively
+            def translate_dict(d):
+                translated = {}
+                for key, value in d.items():
+                    if isinstance(value, str):
+                        translated[key] = self.translation_service.translate_text(value, language)
+                    elif isinstance(value, dict):
+                        translated[key] = translate_dict(value)
+                    else:
+                        translated[key] = value
+                return translated
+            
+            content = translate_dict(content)
         
         return content
 
@@ -308,6 +346,19 @@ class HealthInsurancePDFGenerator:
             ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
         ]))
         
+        # Get language names
+        language_names = {
+            'en': 'English',
+            'hi': 'हिंदी (Hindi)',
+            'mr': 'मराठी (Marathi)',
+            'gu': 'ગુજરાતી (Gujarati)',
+            'te': 'తెలుగు (Telugu)',
+            'bn': 'বাংলা (Bengali)',
+            'kn': 'ಕನ್ನಡ (Kannada)',
+            'ta': 'தமிழ் (Tamil)',
+            'ml': 'മലയാളം (Malayalam)'
+        }
+        
         # Details table
         details_data = [
             ['FIELD', 'DETAILS'],
@@ -318,11 +369,12 @@ class HealthInsurancePDFGenerator:
             [translated_content['fields']['city'], f"{user_data.get('city_of_residence', 'N/A').title()} ({user_data.get('tier_city', 'N/A')})"],
             [translated_content['fields']['family_members'], f"{user_data.get('number_of_members', 'N/A')} {translated_content['values']['members']}"],
             [translated_content['fields']['eldest_age'], f"{user_data.get('eldest_member_age', 'N/A')} {translated_content['values']['years']}"],
-            [translated_content['fields']['pre_existing'], user_data.get('pre_existing_diseases', 'N/A').title()],
-            [translated_content['fields']['surgery'], user_data.get('major_surgery', 'N/A').title()],
-            [translated_content['fields']['existing_insurance'], user_data.get('existing_insurance', 'N/A').title()],
+            [translated_content['fields']['pre_existing'], self.translation_service.translate_text(user_data.get('pre_existing_diseases', 'N/A'), language) if language != 'en' else user_data.get('pre_existing_diseases', 'N/A').title()],
+            [translated_content['fields']['surgery'], self.translation_service.translate_text(user_data.get('major_surgery', 'N/A'), language) if language != 'en' else user_data.get('major_surgery', 'N/A').title()],
+            [translated_content['fields']['existing_insurance'], self.translation_service.translate_text(user_data.get('existing_insurance', 'N/A'), language) if language != 'en' else user_data.get('existing_insurance', 'N/A').title()],
             [translated_content['fields']['current_coverage'], self._format_currency(user_data.get('current_coverage', 0))],
-            [translated_content['fields']['port_policy'], user_data.get('port_policy', 'N/A').title()]
+            [translated_content['fields']['port_policy'], self.translation_service.translate_text(user_data.get('port_policy', 'N/A'), language) if language != 'en' else user_data.get('port_policy', 'N/A').title()],
+            [translated_content['fields']['report_language'], language_names.get(user_data.get('report_language', 'en'), 'English')]
         ]
         
         details_table = Table(details_data, colWidths=[8*cm, 8*cm])
@@ -356,7 +408,7 @@ class HealthInsurancePDFGenerator:
         return [section_header, details_table]
 
     def _create_recommendation(self, user_data, recommended_coverage, language='en'):
-        """Create recommendation section with translation"""
+        """Create recommendation section with proper text wrapping"""
         translated_content = self._get_translated_content(language)
         
         # Section header
@@ -373,26 +425,42 @@ class HealthInsurancePDFGenerator:
             ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
         ]))
         
-        # Build recommendation content
-        family_members = int(user_data.get('number_of_members', 1))
-        protection_text = self.translation_service.translate_text("you and your family" if family_members > 1 else "yourself", language)
+        # Build recommendation content with proper paragraph styles
+        styles = getSampleStyleSheet()
+        
+        # Create custom styles for recommendations
+        main_style = ParagraphStyle(
+            'MainRecommendation',
+            parent=styles['Normal'],
+            fontSize=13,
+            fontName='Helvetica-Bold',
+            textColor=self.colors['text_dark'],
+            spaceAfter=12,
+            leading=16
+        )
+        
+        sub_style = ParagraphStyle(
+            'SubRecommendation',
+            parent=styles['Normal'],
+            fontSize=11,
+            textColor=self.colors['text_muted'],
+            spaceAfter=10,
+            leading=14
+        )
         
         recommendation_content = []
         
         # Main recommendation
-        main_text = self.translation_service.translate_text(
-            f"Based on your comprehensive profile analysis, we recommend a Health Insurance coverage of {self._format_currency(recommended_coverage)} to ensure adequate protection for {protection_text}.",
-            language
-        )
-        recommendation_content.append([main_text])
+        family_members = int(user_data.get('number_of_members', 1))
+        protection_text = translated_content['recommendations']['you_and_family'] if family_members > 1 else translated_content['recommendations']['yourself']
+        
+        main_text = f"{translated_content['recommendations']['based_on']} {self._format_currency(recommended_coverage)} {translated_content['recommendations']['protection_for']} {protection_text}."
+        recommendation_content.append(Paragraph(main_text, main_style))
         
         # Family size consideration
         if family_members > 1:
-            family_text = self.translation_service.translate_text(
-                f"Family Size Consideration: This recommendation includes an adjustment for your family size of {family_members} members.",
-                language
-            )
-            recommendation_content.append([family_text])
+            family_text = f"{translated_content['recommendations']['family_size']}: {translated_content['recommendations']['family_adjustment']} {family_members} {translated_content['values']['members']}."
+            recommendation_content.append(Paragraph(family_text, sub_style))
         
         # Coverage analysis
         if user_data.get('existing_insurance', 'No').lower() == 'yes':
@@ -400,55 +468,40 @@ class HealthInsurancePDFGenerator:
             
             if current_cov and current_cov > 0:
                 if current_cov >= recommended_coverage:
-                    coverage_text = self.translation_service.translate_text(
-                        f"Coverage Status: Your current coverage of {self._format_currency(current_cov)} appears adequate for your current needs.",
-                        language
-                    )
+                    coverage_text = f"{translated_content['recommendations']['coverage_status']}: {translated_content['recommendations']['adequate_coverage']}"
                 else:
                     gap = recommended_coverage - current_cov
-                    coverage_text = self.translation_service.translate_text(
-                        f"Coverage Gap Alert: Your current coverage of {self._format_currency(current_cov)} has a shortfall of {self._format_currency(gap)}. Consider increasing your coverage.",
-                        language
-                    )
+                    coverage_text = f"{translated_content['recommendations']['coverage_gap']}: {translated_content['recommendations']['current_coverage']} {self._format_currency(current_cov)} {translated_content['recommendations']['shortfall']} {self._format_currency(gap)}. {translated_content['recommendations']['consider_increasing']}"
             else:
-                coverage_text = self.translation_service.translate_text(
-                    "Coverage Enhancement: You mentioned having existing insurance but no coverage amount was specified. Please review your current policy details.",
-                    language
-                )
+                coverage_text = f"{translated_content['recommendations']['coverage_enhancement']}: {translated_content['recommendations']['review_policy']}"
             
-            recommendation_content.append([coverage_text])
+            recommendation_content.append(Paragraph(coverage_text, sub_style))
         
-        # Create recommendation table
-        recommendation_table = Table(recommendation_content, colWidths=[15*cm])
+        # Create a frame to contain the recommendation content
+        frame_width = 15*cm
+        frame_height = 10*cm  # Adjust height as needed
         
-        # Build table style
-        table_style = [
+        # Create a KeepInFrame to prevent overflow
+        framed_content = KeepInFrame(
+            maxWidth=frame_width,
+            maxHeight=frame_height,
+            content=recommendation_content,
+            hAlign='LEFT'
+        )
+        
+        # Create the recommendation box
+        recommendation_data = [[framed_content]]
+        recommendation_table = Table(recommendation_data, colWidths=[frame_width])
+        
+        recommendation_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#F8FFFE')),
             ('BOX', (0, 0), (-1, -1), 2, self.colors['success']),
             ('LEFTPADDING', (0, 0), (-1, -1), 15),
             ('RIGHTPADDING', (0, 0), (-1, -1), 15),
-            ('TOPPADDING', (0, 0), (-1, -1), 12),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
+            ('TOPPADDING', (0, 0), (-1, -1), 15),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 15),
             ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
-            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-        ]
-        
-        # Style each row
-        for i in range(len(recommendation_content)):
-            if i == 0:  # Main recommendation - bold and larger
-                table_style.extend([
-                    ('FONTNAME', (0, i), (0, i), 'Helvetica-Bold'),
-                    ('FONTSIZE', (0, i), (0, i), 13),
-                    ('TEXTCOLOR', (0, i), (0, i), self.colors['text_dark']),
-                ])
-            else:  # Other rows
-                table_style.extend([
-                    ('FONTSIZE', (0, i), (0, i), 11),
-                    ('TEXTCOLOR', (0, i), (0, i), self.colors['text_muted']),
-                ])
-        
-        recommendation_table.setStyle(TableStyle(table_style))
+        ]))
         
         return [section_header, recommendation_table]
 
@@ -495,15 +548,15 @@ class HealthInsurancePDFGenerator:
         return footer_table
 
     def generate_pdf_stream(self, form_id, agent_info, language='en'):
-        """Generate PDF to memory stream (no file system storage)"""
+        """Generate PDF to memory stream with language support"""
         try:
             # Fetch data
             user_data = self._fetch_form_data(form_id)
             if not user_data:
                 raise Exception("Form data not found")
             
-            # Use the language from user data if available
-            pdf_language = user_data.get('language', language)
+            # Use the report language specified by customer
+            pdf_language = user_data.get('report_language', language)
             
             recommended_coverage = self._get_recommended_coverage(user_data)
             

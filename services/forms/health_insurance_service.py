@@ -1,5 +1,5 @@
 # services/forms/health_insurance_service.py
-# MODIFIED - Direct PDF generation without server storage
+# UPDATED - Added report language support and fixed usage limit
 
 from datetime import datetime, timedelta
 from bson import ObjectId
@@ -18,7 +18,7 @@ class HealthInsuranceFormService:
         self.users = get_users_collection()
     
     def create_form_link(self, agent_id, language='en', expires_days=30, usage_limit=1):
-        """Create a form link for health insurance with default single use"""
+        """Create a form link for health insurance with proper usage limit"""
         # Get agent details
         agent = self.users.find_one({'_id': ObjectId(agent_id)})
         if not agent:
@@ -28,7 +28,7 @@ class HealthInsuranceFormService:
         if not agent.get('plan_id') or agent.get('agent_pdf_generated', 0) >= agent.get('agent_pdf_limit', 0):
             return None, "Agent has reached PDF generation limit"
         
-        # Create form link with default single use
+        # Create form link with usage limit
         link_data = {
             'token': FormLink.generate_token(),
             'form_type': 'health_insurance',
@@ -41,7 +41,7 @@ class HealthInsuranceFormService:
             'expires_at': datetime.utcnow() + timedelta(days=expires_days) if expires_days else None,
             'is_active': True,
             'usage_count': 0,
-            'usage_limit': usage_limit  # Default to 1 for single customer
+            'usage_limit': usage_limit  # Properly set usage limit
         }
         
         result = self.form_links.insert_one(link_data)
@@ -62,7 +62,7 @@ class HealthInsuranceFormService:
         return FormLink(link_data) if link_data else None
     
     def submit_form(self, form_data, token):
-        """Submit health insurance form"""
+        """Submit health insurance form with report language"""
         # Validate token
         link = self.get_form_link(token)
         if not link:
@@ -82,6 +82,7 @@ class HealthInsuranceFormService:
         form_data['form_link_id'] = link._id
         form_data['agent_id'] = link.agent_id
         form_data['language'] = form_data.get('language', link.language)
+        form_data['report_language'] = form_data.get('report_language', form_data.get('language', 'en'))
         form_data['created_at'] = datetime.utcnow()
         form_data['updated_at'] = datetime.utcnow()
         
@@ -99,19 +100,29 @@ class HealthInsuranceFormService:
             {'$inc': {'usage_count': 1}}
         )
         
-        # If single use link, deactivate after first use
-        if link.usage_limit == 1:
+        # Check if link should be deactivated based on usage limit
+        if link.usage_limit and (link.usage_count + 1) >= link.usage_limit:
             self.form_links.update_one(
                 {'_id': link._id},
-                {'$set': {'is_active': False, 'deactivated_reason': 'Single use completed'}}
+                {'$set': {
+                    'is_active': False, 
+                    'deactivated_reason': f'Usage limit ({link.usage_limit}) reached',
+                    'deactivated_at': datetime.utcnow()
+                }}
+            )
+            log_activity(
+                str(link.agent_id),
+                'FORM_LINK_DEACTIVATED',
+                f"Form link auto-deactivated after reaching usage limit of {link.usage_limit}",
+                {'link_id': str(link._id), 'token': token}
             )
         
         # Log activity
         log_activity(
             str(link.agent_id),
             'FORM_SUBMITTED',
-            f"Health insurance form submitted by {form_data.get('name')} (Language: {form_data.get('language')})",
-            {'form_id': str(result.inserted_id), 'language': form_data.get('language')}
+            f"Health insurance form submitted by {form_data.get('name')} (Report Language: {form_data.get('report_language')})",
+            {'form_id': str(result.inserted_id), 'language': form_data.get('language'), 'report_language': form_data.get('report_language')}
         )
         
         return str(result.inserted_id), None
@@ -157,15 +168,25 @@ class HealthInsuranceFormService:
         # Toggle status
         new_status = not link_data.get('is_active', True)
         
+        update_data = {
+            'is_active': new_status, 
+            'updated_at': datetime.utcnow()
+        }
+        
+        # Add reason if deactivating manually
+        if not new_status:
+            update_data['deactivated_reason'] = 'Manually deactivated by agent'
+            update_data['deactivated_at'] = datetime.utcnow()
+        
         self.form_links.update_one(
             {'_id': ObjectId(link_id)},
-            {'$set': {'is_active': new_status, 'updated_at': datetime.utcnow()}}
+            {'$set': update_data}
         )
         
         return True
     
-    def generate_pdf_stream(self, form_id, agent_id):
-        """Generate PDF and return as byte stream (no server storage)"""
+    def generate_pdf_stream(self, form_id, agent_id, report_language='en'):
+        """Generate PDF and return as byte stream with language support"""
         form = self.get_form_by_id(form_id)
         if not form:
             return None, "Form not found", None
@@ -196,8 +217,11 @@ class HealthInsuranceFormService:
                 'phone': agent.get('phone', '')
             }
             
+            # Use report language if specified, otherwise fall back to form language
+            pdf_language = report_language or form.report_language or form.language or 'en'
+            
             # Generate PDF to memory instead of file
-            pdf_stream = pdf_generator.generate_pdf_stream(str(form_id), agent_info, form.language)
+            pdf_stream = pdf_generator.generate_pdf_stream(str(form_id), agent_info, pdf_language)
             
             if pdf_stream:
                 # Increment agent's PDF count
@@ -217,12 +241,13 @@ class HealthInsuranceFormService:
                 log_activity(
                     agent_id,
                     'PDF_GENERATED',
-                    f"Generated health insurance PDF for {form.name} in {form.language}",
-                    {'form_id': form_id, 'language': form.language}
+                    f"Generated health insurance PDF for {form.name} in {pdf_language}",
+                    {'form_id': form_id, 'language': pdf_language}
                 )
                 
                 # Generate filename for download
-                filename = f"{form.name.replace(' ', '_')}_Health_Insurance_Analysis_{form.language}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+                lang_suffix = f"_{pdf_language}" if pdf_language != 'en' else ""
+                filename = f"{form.name.replace(' ', '_')}_Health_Insurance_Analysis{lang_suffix}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
                 
                 return pdf_stream, None, filename
             else:

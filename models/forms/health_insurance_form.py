@@ -1,4 +1,4 @@
-#  models/forms/health_insurance_form.py
+# models/forms/health_insurance_form.py
 from datetime import datetime
 from bson import ObjectId
 
@@ -23,6 +23,9 @@ class HealthInsuranceForm:
             self.existing_insurance = data.get('existing_insurance')
             self.current_coverage = data.get('current_coverage')
             self.port_policy = data.get('port_policy')
+            
+            # NEW: Preferred report language
+            self.report_language = data.get('report_language', 'en')
             
             # Tier city will be calculated based on city
             self.tier_city = data.get('tier_city')
@@ -52,6 +55,7 @@ class HealthInsuranceForm:
             'existing_insurance': self.existing_insurance,
             'current_coverage': self.current_coverage,
             'port_policy': self.port_policy,
+            'report_language': self.report_language,
             'tier_city': self.tier_city,
             'form_timestamp': self.form_timestamp,
             'created_at': self.created_at,

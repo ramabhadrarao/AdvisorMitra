@@ -1,5 +1,5 @@
 # controllers/forms/health_insurance_controller.py
-# OPTIMIZED - Fixed performance issues causing 1-minute delays
+# UPDATED - Added report language field and fixed usage limit functionality
 
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, send_file
 from flask_login import login_required, current_user
@@ -158,7 +158,7 @@ def create_link():
 
 @health_insurance_bp.route('/form/<token>', methods=['GET', 'POST'])
 def public_form(token):
-    """OPTIMIZED: Public form for customers to fill - Dynamic translation"""
+    """UPDATED: Public form for customers to fill - Dynamic translation with report language"""
     start_time = datetime.now()
     logger.info(f"🚀 Form request started for token: {token}")
     
@@ -173,7 +173,7 @@ def public_form(token):
             return render_template('forms/error.html', 
                                  message="Invalid or expired form link"), 404
         
-        # OPTIMIZATION 5: Quick validity check
+        # OPTIMIZATION 5: Quick validity check with usage limit
         is_valid, message = link.is_valid()
         if not is_valid:
             logger.warning(f"❌ Invalid link: {message}")
@@ -196,6 +196,7 @@ def public_form(token):
                 'existing_insurance': request.form.get('existing_insurance'),
                 'current_coverage': float(request.form.get('current_coverage', 0)),
                 'port_policy': request.form.get('port_policy', 'No'),
+                'report_language': request.form.get('report_language', link.language),
                 'language': link.language
             }
             
@@ -249,6 +250,13 @@ def public_form(token):
         # OPTIMIZATION 9: Get translations efficiently (cache if possible)
         translation_service = get_translation_service()
         form_translations = translation_service.get_form_translations(link.language)
+        
+        # Add report language fields to translations
+        if 'fields' not in form_translations:
+            form_translations['fields'] = {}
+        
+        form_translations['fields']['report_language'] = translation_service.translate_text('Preferred Report Language', link.language)
+        form_translations['fields']['report_language_hint'] = translation_service.translate_text('Your health insurance report will be generated in this language', link.language)
         
         elapsed_time = (datetime.now() - start_time).total_seconds()
         logger.info(f"🏁 Form rendering completed in {elapsed_time:.3f}s for token: {token}")
@@ -327,55 +335,6 @@ def view_form(form_id):
     
     return render_template('forms/health_insurance/view.html', form=form)
 
-# @health_insurance_bp.route('/<form_id>/generate-pdf', methods=['POST'])
-# @login_required
-# def generate_pdf(form_id):
-#     """Generate PDF for form"""
-#     if not current_user.is_agent():
-#         return jsonify({'error': 'Only agents can generate PDFs'}), 403
-    
-#     service = HealthInsuranceFormService()
-#     pdf_filename, error = service.generate_pdf(form_id, current_user.id)
-    
-#     if pdf_filename:
-#         return jsonify({
-#             'success': True,
-#             'pdf_filename': pdf_filename,
-#             'download_url': url_for('health_insurance.download_pdf', 
-#                                   form_id=form_id, 
-#                                   filename=pdf_filename)
-#         })
-#     else:
-#         return jsonify({'success': False, 'error': error}), 400
-
-# @health_insurance_bp.route('/<form_id>/download/<filename>')
-# @login_required
-# def download_pdf(form_id, filename):
-#     """Download generated PDF"""
-#     if not current_user.is_agent():
-#         flash('Only agents can download PDFs.', 'danger')
-#         return redirect(url_for('dashboard.index'))
-    
-#     service = HealthInsuranceFormService()
-#     form = service.get_form_by_id(form_id)
-    
-#     if not form or str(form.agent_id) != current_user.id:
-#         flash('Unauthorized access.', 'danger')
-#         return redirect(url_for('health_insurance.index'))
-    
-#     if form.pdf_filename != filename:
-#         flash('Invalid file.', 'danger')
-#         return redirect(url_for('health_insurance.index'))
-    
-#     pdf_path = os.path.join(os.getcwd(), 'static', 'generated_pdfs', filename)
-    
-#     if not os.path.exists(pdf_path):
-#         flash('PDF file not found.', 'danger')
-#         return redirect(url_for('health_insurance.view_form', form_id=form_id))
-    
-#     return send_file(pdf_path, as_attachment=True, download_name=filename)
-# Add this modified generate_pdf route
-
 @health_insurance_bp.route('/<form_id>/generate-pdf')
 @login_required
 def generate_pdf_direct(form_id):
@@ -385,7 +344,17 @@ def generate_pdf_direct(form_id):
         return redirect(url_for('dashboard.index'))
     
     service = HealthInsuranceFormService()
-    pdf_stream, error, filename = service.generate_pdf_stream(form_id, current_user.id)
+    
+    # Get form data to check report language
+    form = service.get_form_by_id(form_id)
+    if not form:
+        flash('Form not found.', 'danger')
+        return redirect(url_for('health_insurance.index'))
+    
+    # Use the customer's preferred report language
+    report_language = form.report_language if hasattr(form, 'report_language') else 'en'
+    
+    pdf_stream, error, filename = service.generate_pdf_stream(form_id, current_user.id, report_language)
     
     if pdf_stream:
         # Send the PDF directly to browser for download
@@ -399,6 +368,7 @@ def generate_pdf_direct(form_id):
     else:
         flash(error, 'danger')
         return redirect(url_for('health_insurance.view_form', form_id=form_id))
+
 # API endpoints for AJAX operations
 @health_insurance_bp.route('/api/link/<link_id>/toggle-status', methods=['POST'])
 @login_required

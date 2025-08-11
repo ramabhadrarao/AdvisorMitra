@@ -1,5 +1,5 @@
 # services/translation_service.py
-# OPTIMIZED - Fixed slow translation issues causing delays
+# UPDATED - Added form field translations for report language
 
 from googletrans import Translator
 import redis
@@ -49,7 +49,9 @@ class TranslationService:
                     'existing_insurance': 'क्या आपके पास मौजूदा स्वास्थ्य बीमा है?',
                     'current_coverage': 'वर्तमान कवरेज राशि (₹)',
                     'port_policy': 'मौजूदा पॉलिसी पोर्ट करना चाहते हैं?',
-                    'submit_button': 'फॉर्म जमा करें'
+                    'submit_button': 'फॉर्म जमा करें',
+                    'report_language': 'पसंदीदा रिपोर्ट भाषा',
+                    'report_language_hint': 'आपकी स्वास्थ्य बीमा रिपोर्ट इस भाषा में तैयार की जाएगी'
                 },
                 'options': {
                     'select': 'चुनें',
@@ -68,18 +70,52 @@ class TranslationService:
                     'name': 'पूर्ण नाव',
                     'email': 'ईमेल पत्ता',
                     'mobile': 'मोबाइल नंबर',
-                    'submit_button': 'फॉर्म सबमिट करा'
+                    'submit_button': 'फॉर्म सबमिट करा',
+                    'report_language': 'पसंतीची अहवाल भाषा',
+                    'report_language_hint': 'तुमचा आरोग्य विमा अहवाल या भाषेत तयार केला जाईल'
                 }
             },
             'gu': {
-                'title': 'આરોગ્য વીમા જરૂરિયાત વિશ્લેષણ',
+                'title': 'આરોગ્ય વીમા જરૂરિયાત વિશ્લેષણ',
                 'subtitle': 'કૃપા કરીને તમારી વિગતો ભરો',
                 'mandatory_note': '* ચિહ્નિત બધા ક્ષેત્રો ફરજિયાત છે',
                 'fields': {
                     'name': 'પૂર્ણ નામ',
                     'email': 'ઇમેઇલ સરનામું',
                     'mobile': 'મોબાઇલ નંબર',
-                    'submit_button': 'ફોર્મ સબમિટ કરો'
+                    'submit_button': 'ફોર્મ સબમિટ કરો',
+                    'report_language': 'પસંદગીની રિપોર્ટ ભાષા',
+                    'report_language_hint': 'તમારો આરોગ્ય વીમા રિપોર્ટ આ ભાષામાં તૈયાર કરવામાં આવશે'
+                }
+            },
+            'te': {
+                'fields': {
+                    'report_language': 'ఇష్టపడే నివేదిక భాష',
+                    'report_language_hint': 'మీ ఆరోగ్య బీమా నివేదిక ఈ భాషలో తయారు చేయబడుతుంది'
+                }
+            },
+            'bn': {
+                'fields': {
+                    'report_language': 'পছন্দের রিপোর্ট ভাষা',
+                    'report_language_hint': 'আপনার স্বাস্থ্য বীমা রিপোর্ট এই ভাষায় তৈরি করা হবে'
+                }
+            },
+            'kn': {
+                'fields': {
+                    'report_language': 'ಆದ್ಯತೆಯ ವರದಿ ಭಾಷೆ',
+                    'report_language_hint': 'ನಿಮ್ಮ ಆರೋಗ್ಯ ವಿಮೆ ವರದಿಯನ್ನು ಈ ಭಾಷೆಯಲ್ಲಿ ತಯಾರಿಸಲಾಗುತ್ತದೆ'
+                }
+            },
+            'ta': {
+                'fields': {
+                    'report_language': 'விருப்பமான அறிக்கை மொழி',
+                    'report_language_hint': 'உங்கள் உடல்நலக் காப்பீட்டு அறிக்கை இந்த மொழியில் தயாரிக்கப்படும்'
+                }
+            },
+            'ml': {
+                'fields': {
+                    'report_language': 'മുൻഗണനാ റിപ്പോർട്ട് ഭാഷ',
+                    'report_language_hint': 'നിങ്ങളുടെ ആരോഗ്യ ഇൻഷുറൻസ് റിപ്പോർട്ട് ഈ ഭാഷയിൽ തയ്യാറാക്കും'
                 }
             }
         }
@@ -159,8 +195,12 @@ class TranslationService:
         
         # OPTIMIZATION 2: Check static translations first
         if target_lang in self._static_translations:
+            # Check in root level
             if text in self._static_translations[target_lang]:
                 return self._static_translations[target_lang][text]
+            # Check in fields
+            if 'fields' in self._static_translations[target_lang] and text in self._static_translations[target_lang]['fields']:
+                return self._static_translations[target_lang]['fields'][text]
         
         # OPTIMIZATION 3: Check cache first
         cached = self.get_cached_translation(text, target_lang)
@@ -265,7 +305,9 @@ class TranslationService:
                 'port_policy': 'Want to Port Existing Policy?',
                 'submit_button': 'Submit Form',
                 'privacy_title': 'Privacy Notice',
-                'privacy_text': 'Your information will be used solely for generating your health insurance requirement analysis and will be shared only with your financial advisor.'
+                'privacy_text': 'Your information will be used solely for generating your health insurance requirement analysis and will be shared only with your financial advisor.',
+                'report_language': 'Preferred Report Language',
+                'report_language_hint': 'Your health insurance report will be generated in this language'
             },
             'options': {
                 'select': 'Select',

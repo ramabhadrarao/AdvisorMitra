@@ -18,7 +18,7 @@
                     {% if current_user.agent_pdf_generated < current_user.agent_pdf_limit %}
                     <a href="{{ url_for('health_insurance.generate_pdf_direct', form_id=form.id) }}" 
                        class="btn btn-success"
-                       onclick="return confirmPDFGeneration(event)">
+                       onclick="return confirmPDFGeneration(event, '{{ form.report_language if form.report_language else form.language }}')">
                         <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M14 3v4a1 1 0 0 0 1 1h4" /><path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" /><path d="M12 11v6" /><path d="M9 14l3 3l3 -3" /></svg>
                         Generate & Download PDF
                     </a>
@@ -48,7 +48,21 @@
                             <h4 class="alert-title">PDF Generation Info</h4>
                             <div class="text-muted">
                                 <strong>PDF Credits:</strong> {{ current_user.agent_pdf_generated }} / {{ current_user.agent_pdf_limit }} used<br>
-                                <strong>Note:</strong> Each PDF generation uses 1 credit. PDFs are generated fresh each time and downloaded directly.
+                                <strong>Report Language:</strong> 
+                                {% set lang_map = {
+                                    'en': 'English',
+                                    'hi': 'हिंदी (Hindi)',
+                                    'mr': 'मराठी (Marathi)',
+                                    'gu': 'ગુજરાતી (Gujarati)',
+                                    'te': 'తెలుగు (Telugu)',
+                                    'bn': 'বাংলা (Bengali)',
+                                    'kn': 'ಕನ್ನಡ (Kannada)',
+                                    'ta': 'தமிழ் (Tamil)',
+                                    'ml': 'മലയാളം (Malayalam)'
+                                } %}
+                                {% set report_lang = form.report_language if form.report_language else form.language %}
+                                <span class="badge bg-success">{{ lang_map.get(report_lang, report_lang.upper()) }}</span><br>
+                                <strong>Note:</strong> PDF will be generated in customer's preferred language.
                             </div>
                         </div>
                     </div>
@@ -58,7 +72,8 @@
                     <div class="card-header">
                         <h3 class="card-title">Customer Information</h3>
                         <div class="card-actions">
-                            <span class="badge bg-info">{{ form.language.upper() }}</span>
+                            <span class="badge bg-info me-2">Form: {{ form.language.upper() }}</span>
+                            <span class="badge bg-success">Report: {{ lang_map.get(report_lang, report_lang.upper()) }}</span>
                         </div>
                     </div>
                     <div class="card-body">
@@ -141,19 +156,30 @@
                 
                 <div class="card mt-3">
                     <div class="card-header">
-                        <h3 class="card-title">Submission Details</h3>
+                        <h3 class="card-title">Form Preferences & Submission Details</h3>
                     </div>
                     <div class="card-body">
                         <div class="datagrid">
+                            <div class="datagrid-item">
+                                <div class="datagrid-title">Form Display Language</div>
+                                <div class="datagrid-content">
+                                    <span class="badge bg-info">{{ lang_map.get(form.language, form.language.upper()) }}</span>
+                                </div>
+                            </div>
+                            <div class="datagrid-item">
+                                <div class="datagrid-title">Preferred Report Language</div>
+                                <div class="datagrid-content">
+                                    <span class="badge bg-success">{{ lang_map.get(report_lang, report_lang.upper()) }}</span>
+                                </div>
+                            </div>
                             <div class="datagrid-item">
                                 <div class="datagrid-title">Submitted On</div>
                                 <div class="datagrid-content">{{ form.created_at.strftime('%Y-%m-%d %H:%M:%S') if form.created_at else '-' }}</div>
                             </div>
                             <div class="datagrid-item">
-                                <div class="datagrid-title">Form Language</div>
+                                <div class="datagrid-title">Form ID</div>
                                 <div class="datagrid-content">
-                                    {% set lang_map = {'en': 'English', 'hi': 'हिंदी', 'mr': 'मराठी', 'gu': 'ગુજરાતી', 'te': 'తెలుగు', 'bn': 'বাংলা', 'kn': 'ಕನ್ನಡ', 'ta': 'தமிழ்', 'ml': 'മലയാളം'} %}
-                                    {{ lang_map.get(form.language, form.language) }}
+                                    <code>{{ form.id }}</code>
                                 </div>
                             </div>
                         </div>
@@ -167,9 +193,22 @@
 
 {% block extra_js %}
 <script>
-function confirmPDFGeneration(event) {
+function confirmPDFGeneration(event, reportLanguage) {
     const remaining = {{ current_user.agent_pdf_limit - current_user.agent_pdf_generated }};
-    const message = `Are you sure you want to generate this PDF?\n\nThis will use 1 PDF credit.\nYou have ${remaining} PDF credits remaining.\n\nThe PDF will be generated and downloaded immediately.`;
+    const langNames = {
+        'en': 'English',
+        'hi': 'Hindi',
+        'mr': 'Marathi',
+        'gu': 'Gujarati',
+        'te': 'Telugu',
+        'bn': 'Bengali',
+        'kn': 'Kannada',
+        'ta': 'Tamil',
+        'ml': 'Malayalam'
+    };
+    const langName = langNames[reportLanguage] || reportLanguage.toUpperCase();
+    
+    const message = `Are you sure you want to generate this PDF?\n\nThis will use 1 PDF credit.\nYou have ${remaining} PDF credits remaining.\n\nThe PDF will be generated in ${langName} as per customer's preference.`;
     
     if (!confirm(message)) {
         event.preventDefault();
@@ -179,7 +218,7 @@ function confirmPDFGeneration(event) {
     // Show loading state
     const btn = event.target.closest('a');
     const originalContent = btn.innerHTML;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Generating PDF...';
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Generating PDF in ' + langName + '...';
     btn.classList.add('disabled');
     
     // Reset after a timeout in case something goes wrong
