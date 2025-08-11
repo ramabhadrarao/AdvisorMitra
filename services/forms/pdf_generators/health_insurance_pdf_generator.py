@@ -1,7 +1,8 @@
 # services/forms/pdf_generators/health_insurance_pdf_generator.py
-# UPDATED - Added multi-language support and fixed recommendation box overflow
+# FIXED - Proper multi-language font support without external dependencies
 
 import os
+import sys
 import io
 from datetime import datetime
 from reportlab.lib import colors
@@ -13,11 +14,42 @@ from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT, TA_JUSTIFY
 from reportlab.pdfgen import canvas
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
+from reportlab.pdfbase.pdfmetrics import registerFontFamily
 from pymongo import MongoClient
 from bson import ObjectId
 from flask import current_app
 import pytz
 from services.translation_service import TranslationService
+import logging
+
+# Set up logging
+logger = logging.getLogger(__name__)
+# Get the absolute path to the root directory
+def get_font_directory():
+    """Get the absolute path to the font directory"""
+    # Try different methods to find the font directory
+    possible_paths = [
+        # Absolute path from root
+        "/root/notofonts.github.io/fonts/",
+        # Relative to current working directory
+        os.path.join(os.getcwd(), "notofonts.github.io/fonts/"),
+        # Relative to the script location
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../../notofonts.github.io/fonts/"),
+        # Relative to app root (if running from app.py)
+        os.path.join(os.path.dirname(sys.argv[0]), "notofonts.github.io/fonts/"),
+        # Direct path if running from /root
+        "/notofonts.github.io/fonts/",
+        # Current directory
+        "./notofonts.github.io/fonts/"
+    ]
+    
+    for path in possible_paths:
+        if os.path.exists(path):
+            print(f"✅ Found font directory at: {path}")
+            return path
+    
+    print(f"❌ Font directory not found. Tried paths: {possible_paths}")
+    return None
 
 class NumberedCanvas(canvas.Canvas):
     def __init__(self, *args, **kwargs):
@@ -85,14 +117,210 @@ class HealthInsurancePDFGenerator:
         }
     
     def _register_fonts(self):
-        """Register fonts for multi-language support"""
+        """Register fonts for multi-language support - FIXED VERSION with proper path resolution"""
         try:
-            # Try to register Noto Sans for better Unicode support
-            # You may need to install these fonts on your server
-            # For now, we'll use Helvetica as fallback
-            pass
+            # Get the font directory dynamically
+            font_dir = get_font_directory()
+            
+            if not font_dir:
+                logger.error("Font directory not found!")
+                return
+            
+            # List contents of font directory for debugging
+            print(f"📁 Font directory contents:")
+            try:
+                for item in os.listdir(font_dir):
+                    print(f"  - {item}")
+            except Exception as e:
+                print(f"  Error listing directory: {e}")
+            
+            # Define font mappings
+            font_mappings = {
+                'NotoSans': {
+                    'regular': "NotoSans/full/ttf/NotoSans-Regular.ttf",
+                    'bold': "NotoSans/full/ttf/NotoSans-Bold.ttf",
+                    'italic': "NotoSans/full/ttf/NotoSans-Italic.ttf",
+                    'boldItalic': "NotoSans/full/ttf/NotoSans-BoldItalic.ttf"
+                },
+                'NotoSansDevanagari': {
+                    'regular': "NotoSansDevanagari/full/ttf/NotoSansDevanagari-Regular.ttf",
+                    'bold': "NotoSansDevanagari/full/ttf/NotoSansDevanagari-Bold.ttf"
+                },
+                'NotoSansGujarati': {
+                    'regular': "NotoSansGujarati/full/ttf/NotoSansGujarati-Regular.ttf",
+                    'bold': "NotoSansGujarati/full/ttf/NotoSansGujarati-Bold.ttf"
+                },
+                'NotoSansBengali': {
+                    'regular': "NotoSansBengali/full/ttf/NotoSansBengali-Regular.ttf",
+                    'bold': "NotoSansBengali/full/ttf/NotoSansBengali-Bold.ttf"
+                },
+                'NotoSansTelugu': {
+                    'regular': "NotoSansTelugu/full/ttf/NotoSansTelugu-Regular.ttf",
+                    'bold': "NotoSansTelugu/full/ttf/NotoSansTelugu-Bold.ttf"
+                },
+                'NotoSansTamil': {
+                    'regular': "NotoSansTamil/full/ttf/NotoSansTamil-Regular.ttf",
+                    'bold': "NotoSansTamil/full/ttf/NotoSansTamil-Bold.ttf"
+                },
+                'NotoSansKannada': {
+                    'regular': "NotoSansKannada/full/ttf/NotoSansKannada-Regular.ttf",
+                    'bold': "NotoSansKannada/full/ttf/NotoSansKannada-Bold.ttf"
+                },
+                'NotoSansMalayalam': {
+                    'regular': "NotoSansMalayalam/full/ttf/NotoSansMalayalam-Regular.ttf",
+                    'bold': "NotoSansMalayalam/full/ttf/NotoSansMalayalam-Bold.ttf"
+                },
+                # Using Gurmukhi for Punjabi
+                'NotoSansGurmukhi': {
+                    'regular': "NotoSansGurmukhi/full/ttf/NotoSansGurmukhi-Regular.ttf",
+                    'bold': "NotoSansGurmukhi/full/ttf/NotoSansGurmukhi-Bold.ttf"
+                },
+                # Using Oriya for Odia
+                'NotoSansOriya': {
+                    'regular': "NotoSansOriya/full/ttf/NotoSansOriya-Regular.ttf",
+                    'bold': "NotoSansOriya/full/ttf/NotoSansOriya-Bold.ttf"
+                }
+            }
+            
+            # Track which fonts were successfully registered
+            self.registered_fonts = {}
+            
+            # Try to register each font
+            for font_family, font_files in font_mappings.items():
+                family_registered = False
+                
+                for style, filename in font_files.items():
+                    full_path = os.path.join(font_dir, filename)
+                    
+                    # Debug: Check if file exists
+                    if os.path.exists(full_path):
+                        try:
+                            # Check file size
+                            file_size = os.path.getsize(full_path)
+                            print(f"📄 Found {filename} ({file_size} bytes)")
+                            
+                            if file_size > 0:
+                                font_name = f"{font_family}-{style}"
+                                pdfmetrics.registerFont(TTFont(font_name, full_path))
+                                self.registered_fonts[font_name] = True
+                                family_registered = True
+                                logger.info(f"✅ Registered font: {font_name} from {full_path}")
+                            else:
+                                logger.warning(f"⚠️ Font file is empty: {full_path}")
+                        except Exception as e:
+                            logger.error(f"❌ Failed to register {font_name}: {e}")
+                    else:
+                        logger.warning(f"⚠️ Font file not found: {full_path}")
+                
+                # Register font family if at least regular was registered
+                if family_registered and f"{font_family}-regular" in self.registered_fonts:
+                    try:
+                        registerFontFamily(
+                            font_family,
+                            normal=f"{font_family}-regular",
+                            bold=f"{font_family}-bold" if f"{font_family}-bold" in self.registered_fonts else f"{font_family}-regular",
+                            italic=f"{font_family}-italic" if f"{font_family}-italic" in self.registered_fonts else f"{font_family}-regular",
+                            boldItalic=f"{font_family}-boldItalic" if f"{font_family}-boldItalic" in self.registered_fonts else f"{font_family}-regular"
+                        )
+                        logger.info(f"✅ Registered font family: {font_family}")
+                    except Exception as e:
+                        logger.warning(f"Failed to register font family {font_family}: {e}")
+            
+            # Print summary
+            print(f"\n📊 Font Registration Summary:")
+            print(f"   Total fonts registered: {len(self.registered_fonts)}")
+            for font_name in sorted(self.registered_fonts.keys()):
+                print(f"   ✅ {font_name}")
+            
+            if not self.registered_fonts:
+                logger.error("❌ No fonts were registered! PDF generation may fail.")
+                print("\n🔍 Debugging tips:")
+                print("1. Check if font files exist in the directory")
+                print("2. Verify font files are not empty (0 bytes)")
+                print("3. Check file permissions (should be readable)")
+                print(f"4. Current working directory: {os.getcwd()}")
+                
         except Exception as e:
-            print(f"Font registration error: {e}")
+            logger.error(f"❌ Font registration error: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def _get_font_for_language(self, language, style='regular'):
+        """Get appropriate font for language - ENHANCED VERSION"""
+        # Map languages to appropriate fonts
+        font_map = {
+            'hi': 'NotoSansDevanagari',  # Hindi
+            'mr': 'NotoSansDevanagari',  # Marathi (uses Devanagari script)
+            'gu': 'NotoSansGujarati',    # Gujarati
+            'te': 'NotoSansTelugu',       # Telugu
+            'bn': 'NotoSansBengali',      # Bengali
+            'kn': 'NotoSansKannada',      # Kannada
+            'ta': 'NotoSansTamil',        # Tamil
+            'ml': 'NotoSansMalayalam',    # Malayalam
+            'pa': 'NotoSansGurmukhi',     # Punjabi
+            'or': 'NotoSansOriya',        # Odia
+            'en': 'NotoSans'              # English
+        }
+        
+        base_font = font_map.get(language, 'NotoSans')
+        font_name = f"{base_font}-{style}"
+        
+        # Check if font is registered
+        if font_name in self.registered_fonts:
+            print(f"✅ Using registered font: {font_name} for language: {language}")
+            return font_name
+        elif f"{base_font}-regular" in self.registered_fonts:
+            print(f"⚠️ Style '{style}' not found, using regular for: {base_font}")
+            return f"{base_font}-regular"
+        else:
+            # Fallback to Helvetica (built-in font)
+            print(f"⚠️ No registered font for {language}, using Helvetica fallback")
+            if style == 'bold':
+                return 'Helvetica-Bold'
+            elif style == 'italic':
+                return 'Helvetica-Oblique'
+            elif style == 'boldItalic':
+                return 'Helvetica-BoldOblique'
+            else:
+                return 'Helvetica'
+    
+    def _create_paragraph_style(self, name, language='en', **kwargs):
+        """Create a paragraph style with appropriate font for language"""
+        font_name = self._get_font_for_language(language)
+        
+        default_style = {
+            'fontName': font_name,
+            'fontSize': 10,
+            'leading': 12,
+            'textColor': self.colors['text_dark']
+        }
+        
+        # Merge with provided kwargs
+        default_style.update(kwargs)
+        
+        return ParagraphStyle(name, **default_style)
+    
+    def _safe_paragraph(self, text, style, language='en'):
+        """Create a paragraph with safe text handling for different languages"""
+        try:
+            # Ensure text is string and handle None values
+            if text is None:
+                text = ""
+            else:
+                text = str(text)
+            
+            # For non-English languages, we might need to handle the text differently
+            if language != 'en' and language in ['hi', 'mr', 'gu', 'te', 'bn', 'kn', 'ta', 'ml']:
+                # For complex scripts, we might need to use a different approach
+                # For now, we'll create a simple text paragraph
+                return Paragraph(text, style)
+            else:
+                return Paragraph(text, style)
+                
+        except Exception as e:
+            logger.error(f"Error creating paragraph: {e}")
+            # Fallback to simple text
+            return Paragraph(str(text), style)
     
     def _get_mongodb_connection(self):
         """Get MongoDB connection"""
@@ -192,7 +420,7 @@ class HealthInsurancePDFGenerator:
                 }
             return None
         except Exception as e:
-            print(f"Database error: {e}")
+            logger.error(f"Database error: {e}")
             return None
     
     def _get_recommended_coverage(self, user_data):
@@ -225,7 +453,7 @@ class HealthInsurancePDFGenerator:
             return 1000000  # Default 10 lakhs
             
         except Exception as e:
-            print(f"Database error: {e}")
+            logger.error(f"Database error: {e}")
             return 1000000
     
     def _get_translated_content(self, language):
@@ -257,7 +485,9 @@ class HealthInsurancePDFGenerator:
             },
             'values': {
                 'years': 'Years',
-                'members': 'Members'
+                'members': 'Members',
+                'yes': 'Yes',
+                'no': 'No'
             },
             'recommendations': {
                 'based_on': 'Based on your comprehensive profile analysis, we recommend a Health Insurance coverage of',
@@ -277,45 +507,167 @@ class HealthInsurancePDFGenerator:
             }
         }
         
-        if language != 'en':
-            # Translate all content recursively
-            def translate_dict(d):
-                translated = {}
-                for key, value in d.items():
-                    if isinstance(value, str):
-                        translated[key] = self.translation_service.translate_text(value, language)
-                    elif isinstance(value, dict):
-                        translated[key] = translate_dict(value)
-                    else:
-                        translated[key] = value
-                return translated
-            
-            content = translate_dict(content)
+        # Hindi translations
+        if language == 'hi':
+            content = {
+                'title': 'स्वास्थ्य बीमा आवश्यकता विश्लेषण',
+                'subtitle': 'व्यापक कवरेज मूल्यांकन रिपोर्ट',
+                'customer_info': 'ग्राहक जानकारी',
+                'recommendation': 'अनुशंसित स्वास्थ्य बीमा कवरेज',
+                'advisor': 'आपके वित्तीय सलाहकार',
+                'report_generated': 'रिपोर्ट तैयार की गई',
+                'confidential': 'गोपनीय दस्तावेज़',
+                'specialist': 'वित्तीय योजना विशेषज्ञ',
+                'fields': {
+                    'full_name': 'पूरा नाम',
+                    'email': 'ईमेल पता',
+                    'mobile': 'मोबाइल नंबर',
+                    'age': 'आयु',
+                    'city': 'निवास शहर',
+                    'family_members': 'परिवार के सदस्य',
+                    'eldest_age': 'सबसे बड़े सदस्य की आयु',
+                    'pre_existing': 'पहले से मौजूद बीमारियाँ',
+                    'surgery': 'बड़ी सर्जरी का इतिहास',
+                    'existing_insurance': 'मौजूदा स्वास्थ्य बीमा',
+                    'current_coverage': 'वर्तमान कवरेज राशि',
+                    'port_policy': 'मौजूदा पॉलिसी पोर्ट करें',
+                    'report_language': 'रिपोर्ट भाषा'
+                },
+                'values': {
+                    'years': 'वर्ष',
+                    'members': 'सदस्य',
+                    'yes': 'हाँ',
+                    'no': 'नहीं'
+                },
+                'recommendations': {
+                    'based_on': 'आपकी व्यापक प्रोफ़ाइल विश्लेषण के आधार पर, हम',
+                    'protection_for': 'की स्वास्थ्य बीमा कवरेज की सिफारिश करते हैं ताकि',
+                    'you_and_family': 'आप और आपके परिवार',
+                    'yourself': 'आप',
+                    'family_size': 'परिवार के आकार पर विचार',
+                    'family_adjustment': 'इस सिफारिश में आपके परिवार के आकार के लिए समायोजन शामिल है',
+                    'coverage_status': 'कवरेज स्थिति',
+                    'adequate_coverage': 'आपका वर्तमान कवरेज आपकी वर्तमान आवश्यकताओं के लिए पर्याप्त प्रतीत होता है।',
+                    'coverage_gap': 'कवरेज अंतर चेतावनी',
+                    'current_coverage': 'आपका वर्तमान कवरेज',
+                    'shortfall': 'की कमी है',
+                    'consider_increasing': 'अपना कवरेज बढ़ाने पर विचार करें।',
+                    'coverage_enhancement': 'कवरेज संवर्धन',
+                    'review_policy': 'आपने मौजूदा बीमा होने का उल्लेख किया है लेकिन कोई कवरेज राशि निर्दिष्ट नहीं की गई है। कृपया अपनी वर्तमान पॉलिसी विवरण की समीक्षा करें।'
+                }
+            }
+        
+        # Marathi translations
+        elif language == 'mr':
+            content = {
+                'title': 'आरोग्य विमा गरज विश्लेषण',
+                'subtitle': 'सर्वसमावेशक कवरेज मूल्यांकन अहवाल',
+                'customer_info': 'ग्राहक माहिती',
+                'recommendation': 'शिफारस केलेले आरोग्य विमा कवरेज',
+                'advisor': 'तुमचे आर्थिक सल्लागार',
+                'report_generated': 'अहवाल तयार केला',
+                'confidential': 'गोपनीय दस्तऐवज',
+                'specialist': 'आर्थिक नियोजन तज्ञ',
+                'fields': {
+                    'full_name': 'पूर्ण नाव',
+                    'email': 'ईमेल पत्ता',
+                    'mobile': 'मोबाइल नंबर',
+                    'age': 'वय',
+                    'city': 'निवासाचे शहर',
+                    'family_members': 'कुटुंबातील सदस्य',
+                    'eldest_age': 'सर्वात वयस्क सदस्याचे वय',
+                    'pre_existing': 'पूर्वीपासून असलेले आजार',
+                    'surgery': 'मोठ्या शस्त्रक्रियेचा इतिहास',
+                    'existing_insurance': 'सध्याचा आरोग्य विमा',
+                    'current_coverage': 'सध्याची कवरेज रक्कम',
+                    'port_policy': 'सध्याची पॉलिसी पोर्ट करा',
+                    'report_language': 'अहवाल भाषा'
+                },
+                'values': {
+                    'years': 'वर्षे',
+                    'members': 'सदस्य',
+                    'yes': 'होय',
+                    'no': 'नाही'
+                },
+                'recommendations': {
+                    'based_on': 'तुमच्या सर्वसमावेशक प्रोफाइल विश्लेषणाच्या आधारे, आम्ही',
+                    'protection_for': 'च्या आरोग्य विमा कवरेजची शिफारस करतो जेणेकरून',
+                    'you_and_family': 'तुम्ही आणि तुमचे कुटुंब',
+                    'yourself': 'तुम्ही',
+                    'family_size': 'कुटुंबाच्या आकाराचा विचार',
+                    'family_adjustment': 'या शिफारसीमध्ये तुमच्या कुटुंबाच्या आकारासाठी समायोजन समाविष्ट आहे',
+                    'coverage_status': 'कवरेज स्थिती',
+                    'adequate_coverage': 'तुमचे सध्याचे कवरेज तुमच्या सध्याच्या गरजांसाठी पुरेसे वाटते.',
+                    'coverage_gap': 'कवरेज अंतर सूचना',
+                    'current_coverage': 'तुमचे सध्याचे कवरेज',
+                    'shortfall': 'ची कमतरता आहे',
+                    'consider_increasing': 'तुमचे कवरेज वाढवण्याचा विचार करा.',
+                    'coverage_enhancement': 'कवरेज सुधारणा',
+                    'review_policy': 'तुम्ही सध्याचा विमा असल्याचे नमूद केले आहे पण कवरेज रक्कम निर्दिष्ट केली नाही. कृपया तुमच्या सध्याच्या पॉलिसीचे तपशील तपासा.'
+                }
+            }
+        
+        # For other languages, use translation service for dynamic translation
+        elif language != 'en':
+            try:
+                # Only translate if translation service is available
+                if hasattr(self, 'translation_service') and self.translation_service:
+                    def translate_dict(d, target_lang):
+                        translated = {}
+                        for key, value in d.items():
+                            if isinstance(value, str):
+                                translated[key] = self.translation_service.translate_text(value, target_lang)
+                            elif isinstance(value, dict):
+                                translated[key] = translate_dict(value, target_lang)
+                            else:
+                                translated[key] = value
+                        return translated
+                    
+                    content = translate_dict(content, language)
+            except Exception as e:
+                logger.warning(f"Translation failed for language {language}: {e}")
+                # Return English content as fallback
         
         return content
 
     def _create_header(self, language='en'):
-        """Create document header with translation"""
+        """Create document header with proper font support"""
         translated_content = self._get_translated_content(language)
         
-        header_data = [
-            [translated_content['title']],
-            [translated_content['subtitle']]
-        ]
+        # Create styles with language-specific fonts
+        title_style = self._create_paragraph_style(
+            'HeaderTitle',
+            language=language,
+            fontSize=16,
+            fontName=self._get_font_for_language(language, 'bold'),
+            textColor=self.colors['white'],
+            alignment=TA_CENTER
+        )
+        
+        subtitle_style = self._create_paragraph_style(
+            'HeaderSubtitle',
+            language=language,
+            fontSize=11,
+            fontName=self._get_font_for_language(language, 'bold'),
+            textColor=self.colors['primary'],
+            alignment=TA_CENTER
+        )
+        
+        # Create paragraphs with safe text handling
+        title_para = self._safe_paragraph(translated_content['title'], title_style, language)
+        subtitle_para = self._safe_paragraph(translated_content['subtitle'], subtitle_style, language)
+        
+        header_data = [[title_para], [subtitle_para]]
         
         header_table = Table(header_data, colWidths=[16*cm])
         header_table.setStyle(TableStyle([
             # Title row styling
             ('BACKGROUND', (0, 0), (-1, 0), self.colors['primary']),
             ('TEXTCOLOR', (0, 0), (-1, 0), self.colors['white']),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 16),
             
             # Subtitle row styling
             ('BACKGROUND', (0, 1), (-1, 1), self.colors['secondary']),
             ('TEXTCOLOR', (0, 1), (-1, 1), self.colors['primary']),
-            ('FONTNAME', (0, 1), (-1, 1), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 1), (-1, 1), 11),
             
             # General styling
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
@@ -329,16 +681,24 @@ class HealthInsurancePDFGenerator:
         return header_table
 
     def _create_customer_details(self, user_data, language='en'):
-        """Create customer details section with translation"""
+        """Create customer details section with proper font support"""
         translated_content = self._get_translated_content(language)
         
-        # Section header
-        section_header = Table([[translated_content['customer_info']]], colWidths=[16*cm])
+        # Section header style
+        section_header_style = self._create_paragraph_style(
+            'SectionHeader',
+            language=language,
+            fontSize=13,
+            fontName=self._get_font_for_language(language, 'bold'),
+            textColor=self.colors['white'],
+            alignment=TA_CENTER
+        )
+        
+        # Create section header
+        section_header_para = self._safe_paragraph(translated_content['customer_info'], section_header_style, language)
+        section_header = Table([[section_header_para]], colWidths=[16*cm])
         section_header.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, -1), self.colors['primary']),
-            ('TEXTCOLOR', (0, 0), (-1, -1), self.colors['white']),
-            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), 13),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
             ('BOX', (0, 0), (-1, -1), 1, self.colors['primary']),
@@ -359,22 +719,58 @@ class HealthInsurancePDFGenerator:
             'ml': 'മലയാളം (Malayalam)'
         }
         
-        # Details table
+        # Create styles for table content
+        field_style = self._create_paragraph_style(
+            'FieldName',
+            language=language,
+            fontSize=10,
+            fontName=self._get_font_for_language(language, 'bold')
+        )
+        
+        value_style = self._create_paragraph_style(
+            'FieldValue',
+            language=language,
+            fontSize=10,
+            fontName=self._get_font_for_language(language)
+        )
+        
+        # Helper function to translate Yes/No
+        def translate_yes_no(value, lang):
+            if value.lower() == 'yes':
+                return translated_content.get('values', {}).get('yes', 'Yes')
+            elif value.lower() == 'no':
+                return translated_content.get('values', {}).get('no', 'No')
+            return value
+        
+        # Details table with paragraphs
         details_data = [
-            ['FIELD', 'DETAILS'],
-            [translated_content['fields']['full_name'], user_data.get('name', 'N/A').title()],
-            [translated_content['fields']['email'], self._mask_email(user_data.get('email', 'N/A'))],
-            [translated_content['fields']['mobile'], self._mask_mobile(user_data.get('mobile', 'N/A'))],
-            [translated_content['fields']['age'], f"{user_data.get('age', 'N/A')} {translated_content['values']['years']}"],
-            [translated_content['fields']['city'], f"{user_data.get('city_of_residence', 'N/A').title()} ({user_data.get('tier_city', 'N/A')})"],
-            [translated_content['fields']['family_members'], f"{user_data.get('number_of_members', 'N/A')} {translated_content['values']['members']}"],
-            [translated_content['fields']['eldest_age'], f"{user_data.get('eldest_member_age', 'N/A')} {translated_content['values']['years']}"],
-            [translated_content['fields']['pre_existing'], self.translation_service.translate_text(user_data.get('pre_existing_diseases', 'N/A'), language) if language != 'en' else user_data.get('pre_existing_diseases', 'N/A').title()],
-            [translated_content['fields']['surgery'], self.translation_service.translate_text(user_data.get('major_surgery', 'N/A'), language) if language != 'en' else user_data.get('major_surgery', 'N/A').title()],
-            [translated_content['fields']['existing_insurance'], self.translation_service.translate_text(user_data.get('existing_insurance', 'N/A'), language) if language != 'en' else user_data.get('existing_insurance', 'N/A').title()],
-            [translated_content['fields']['current_coverage'], self._format_currency(user_data.get('current_coverage', 0))],
-            [translated_content['fields']['port_policy'], self.translation_service.translate_text(user_data.get('port_policy', 'N/A'), language) if language != 'en' else user_data.get('port_policy', 'N/A').title()],
-            [translated_content['fields']['report_language'], language_names.get(user_data.get('report_language', 'en'), 'English')]
+            [Paragraph('FIELD', field_style), Paragraph('DETAILS', field_style)],
+            [Paragraph(translated_content['fields']['full_name'], field_style), 
+            Paragraph(user_data.get('name', 'N/A').title(), value_style)],
+            [Paragraph(translated_content['fields']['email'], field_style), 
+            Paragraph(self._mask_email(user_data.get('email', 'N/A')), value_style)],
+            [Paragraph(translated_content['fields']['mobile'], field_style), 
+            Paragraph(self._mask_mobile(user_data.get('mobile', 'N/A')), value_style)],
+            [Paragraph(translated_content['fields']['age'], field_style), 
+            Paragraph(f"{user_data.get('age', 'N/A')} {translated_content['values']['years']}", value_style)],
+            [Paragraph(translated_content['fields']['city'], field_style), 
+            Paragraph(f"{user_data.get('city_of_residence', 'N/A').title()} ({user_data.get('tier_city', 'N/A')})", value_style)],
+            [Paragraph(translated_content['fields']['family_members'], field_style), 
+            Paragraph(f"{user_data.get('number_of_members', 'N/A')} {translated_content['values']['members']}", value_style)],
+            [Paragraph(translated_content['fields']['eldest_age'], field_style), 
+            Paragraph(f"{user_data.get('eldest_member_age', 'N/A')} {translated_content['values']['years']}", value_style)],
+            [Paragraph(translated_content['fields']['pre_existing'], field_style), 
+            Paragraph(translate_yes_no(str(user_data.get('pre_existing_diseases', 'N/A')), language), value_style)],
+            [Paragraph(translated_content['fields']['surgery'], field_style), 
+            Paragraph(translate_yes_no(str(user_data.get('major_surgery', 'N/A')), language), value_style)],
+            [Paragraph(translated_content['fields']['existing_insurance'], field_style), 
+            Paragraph(translate_yes_no(str(user_data.get('existing_insurance', 'N/A')), language), value_style)],
+            [Paragraph(translated_content['fields']['current_coverage'], field_style), 
+            Paragraph(self._format_currency(user_data.get('current_coverage', 0)), value_style)],
+            [Paragraph(translated_content['fields']['port_policy'], field_style), 
+            Paragraph(translate_yes_no(str(user_data.get('port_policy', 'N/A')), language), value_style)],
+            [Paragraph(translated_content['fields']['report_language'], field_style), 
+            Paragraph(language_names.get(user_data.get('report_language', 'en'), 'English'), value_style)]
         ]
         
         details_table = Table(details_data, colWidths=[8*cm, 8*cm])
@@ -382,14 +778,9 @@ class HealthInsurancePDFGenerator:
             # Header row
             ('BACKGROUND', (0, 0), (-1, 0), self.colors['accent']),
             ('TEXTCOLOR', (0, 0), (-1, 0), self.colors['text_dark']),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 11),
             
             # Field column
             ('BACKGROUND', (0, 1), (0, -1), self.colors['bg_light']),
-            ('FONTNAME', (0, 1), (0, -1), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 1), (-1, -1), 10),
-            ('TEXTCOLOR', (0, 1), (-1, -1), self.colors['text_dark']),
             
             # Alternating rows for data column
             ('ROWBACKGROUNDS', (1, 1), (1, -1), [self.colors['white'], colors.HexColor('#F1F2F6')]),
@@ -408,16 +799,24 @@ class HealthInsurancePDFGenerator:
         return [section_header, details_table]
 
     def _create_recommendation(self, user_data, recommended_coverage, language='en'):
-        """Create recommendation section with proper text wrapping"""
+        """Create recommendation section with proper text wrapping and font support"""
         translated_content = self._get_translated_content(language)
         
-        # Section header
-        section_header = Table([[translated_content['recommendation']]], colWidths=[16*cm])
+        # Section header style
+        section_header_style = self._create_paragraph_style(
+            'RecommendationHeader',
+            language=language,
+            fontSize=13,
+            fontName=self._get_font_for_language(language, 'bold'),
+            textColor=self.colors['white'],
+            alignment=TA_CENTER
+        )
+        
+        # Create section header
+        section_header_para = self._safe_paragraph(translated_content['recommendation'], section_header_style, language)
+        section_header = Table([[section_header_para]], colWidths=[16*cm])
         section_header.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, -1), self.colors['success']),
-            ('TEXTCOLOR', (0, 0), (-1, -1), self.colors['white']),
-            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), 13),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
             ('BOX', (0, 0), (-1, -1), 1, self.colors['success']),
@@ -425,24 +824,22 @@ class HealthInsurancePDFGenerator:
             ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
         ]))
         
-        # Build recommendation content with proper paragraph styles
-        styles = getSampleStyleSheet()
-        
         # Create custom styles for recommendations
-        main_style = ParagraphStyle(
+        main_style = self._create_paragraph_style(
             'MainRecommendation',
-            parent=styles['Normal'],
+            language=language,
             fontSize=13,
-            fontName='Helvetica-Bold',
+            fontName=self._get_font_for_language(language, 'bold'),
             textColor=self.colors['text_dark'],
             spaceAfter=12,
             leading=16
         )
         
-        sub_style = ParagraphStyle(
+        sub_style = self._create_paragraph_style(
             'SubRecommendation',
-            parent=styles['Normal'],
+            language=language,
             fontSize=11,
+            fontName=self._get_font_for_language(language),
             textColor=self.colors['text_muted'],
             spaceAfter=10,
             leading=14
@@ -455,12 +852,12 @@ class HealthInsurancePDFGenerator:
         protection_text = translated_content['recommendations']['you_and_family'] if family_members > 1 else translated_content['recommendations']['yourself']
         
         main_text = f"{translated_content['recommendations']['based_on']} {self._format_currency(recommended_coverage)} {translated_content['recommendations']['protection_for']} {protection_text}."
-        recommendation_content.append(Paragraph(main_text, main_style))
+        recommendation_content.append(self._safe_paragraph(main_text, main_style, language))
         
         # Family size consideration
         if family_members > 1:
             family_text = f"{translated_content['recommendations']['family_size']}: {translated_content['recommendations']['family_adjustment']} {family_members} {translated_content['values']['members']}."
-            recommendation_content.append(Paragraph(family_text, sub_style))
+            recommendation_content.append(self._safe_paragraph(family_text, sub_style, language))
         
         # Coverage analysis
         if user_data.get('existing_insurance', 'No').lower() == 'yes':
@@ -475,7 +872,7 @@ class HealthInsurancePDFGenerator:
             else:
                 coverage_text = f"{translated_content['recommendations']['coverage_enhancement']}: {translated_content['recommendations']['review_policy']}"
             
-            recommendation_content.append(Paragraph(coverage_text, sub_style))
+            recommendation_content.append(self._safe_paragraph(coverage_text, sub_style, language))
         
         # Create a frame to contain the recommendation content
         frame_width = 15*cm
@@ -506,7 +903,7 @@ class HealthInsurancePDFGenerator:
         return [section_header, recommendation_table]
 
     def _create_footer(self, agent_info, language='en'):
-        """Create footer with agent details and translation"""
+        """Create footer with agent details and proper font support"""
         translated_content = self._get_translated_content(language)
         
         # Get timestamp
@@ -514,11 +911,35 @@ class HealthInsurancePDFGenerator:
         now_ist = datetime.now(ist)
         generated_time = now_ist.strftime("%d-%b-%Y %I:%M %p")
         
+        # Create styles
+        header_style = self._create_paragraph_style(
+            'FooterHeader',
+            language=language,
+            fontSize=10,
+            fontName=self._get_font_for_language(language, 'bold'),
+            textColor=self.colors['white'],
+            alignment=TA_CENTER
+        )
+        
+        data_style = self._create_paragraph_style(
+            'FooterData',
+            language=language,
+            fontSize=9,
+            fontName=self._get_font_for_language(language),
+            textColor=self.colors['text_dark'],
+            alignment=TA_CENTER
+        )
+        
+        # Create footer data with paragraphs
         footer_data = [
-            [translated_content['advisor'], translated_content['report_generated']],
-            [f"{agent_info['name']}", f"{generated_time}"],
-            [f"+91 {agent_info['phone']}", "AdvisorMitra"],
-            [translated_content['specialist'], translated_content['confidential']]
+            [self._safe_paragraph(translated_content['advisor'], header_style, language), 
+             self._safe_paragraph(translated_content['report_generated'], header_style, language)],
+            [Paragraph(f"{agent_info['name']}", data_style), 
+             Paragraph(f"{generated_time}", data_style)],
+            [Paragraph(f"+91 {agent_info['phone']}", data_style), 
+             Paragraph("AdvisorMitra", data_style)],
+            [self._safe_paragraph(translated_content['specialist'], data_style, language), 
+             self._safe_paragraph(translated_content['confidential'], data_style, language)]
         ]
         
         footer_table = Table(footer_data, colWidths=[8*cm, 8*cm])
@@ -526,12 +947,8 @@ class HealthInsurancePDFGenerator:
             # Header row
             ('BACKGROUND', (0, 0), (-1, 0), self.colors['primary']),
             ('TEXTCOLOR', (0, 0), (-1, 0), self.colors['white']),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, 0), 10),
             
             # Data rows
-            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-            ('FONTSIZE', (0, 1), (-1, -1), 9),
             ('TEXTCOLOR', (0, 1), (-1, -1), self.colors['text_dark']),
             
             # Styling
@@ -548,7 +965,7 @@ class HealthInsurancePDFGenerator:
         return footer_table
 
     def generate_pdf_stream(self, form_id, agent_info, language='en'):
-        """Generate PDF to memory stream with language support"""
+        """Generate PDF to memory stream with proper language support"""
         try:
             # Fetch data
             user_data = self._fetch_form_data(form_id)
@@ -603,5 +1020,5 @@ class HealthInsurancePDFGenerator:
             return pdf_buffer
             
         except Exception as e:
-            print(f"Error generating PDF: {e}")
+            logger.error(f"Error generating PDF: {e}")
             raise e
