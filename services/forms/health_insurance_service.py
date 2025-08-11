@@ -1,5 +1,5 @@
 # services/forms/health_insurance_service.py
-# FIXED - Ensure agent_id is properly stored in form sessions
+# MODIFIED - Direct PDF generation without server storage
 
 from datetime import datetime, timedelta
 from bson import ObjectId
@@ -9,6 +9,7 @@ from models.forms.form_link import FormLink
 from models import get_users_collection
 from utils.helpers import log_activity
 import os
+import io
 
 class HealthInsuranceFormService:
     def __init__(self):
@@ -163,30 +164,24 @@ class HealthInsuranceFormService:
         
         return True
     
-    def generate_pdf(self, form_id, agent_id):
-        """Generate PDF for health insurance form with language support"""
+    def generate_pdf_stream(self, form_id, agent_id):
+        """Generate PDF and return as byte stream (no server storage)"""
         form = self.get_form_by_id(form_id)
         if not form:
-            return None, "Form not found"
+            return None, "Form not found", None
         
         # Verify agent owns this form
         if str(form.agent_id) != str(agent_id):
-            return None, "Unauthorized access"
+            return None, "Unauthorized access", None
         
         # Get agent details
         agent = self.users.find_one({'_id': ObjectId(agent_id)})
         if not agent:
-            return None, "Agent not found"
+            return None, "Agent not found", None
         
         # Check PDF limit
         if agent.get('agent_pdf_generated', 0) >= agent.get('agent_pdf_limit', 0):
-            return None, "PDF generation limit reached"
-        
-        # Check if PDF already generated
-        if form.pdf_generated and form.pdf_filename:
-            pdf_path = os.path.join(os.getcwd(), 'static', 'generated_pdfs', form.pdf_filename)
-            if os.path.exists(pdf_path):
-                return form.pdf_filename, None
+            return None, "PDF generation limit reached", None
         
         try:
             # Import PDF generator
@@ -201,22 +196,10 @@ class HealthInsuranceFormService:
                 'phone': agent.get('phone', '')
             }
             
-            pdf_filename = pdf_generator.generate_pdf(str(form_id), agent_info, form.language)
+            # Generate PDF to memory instead of file
+            pdf_stream = pdf_generator.generate_pdf_stream(str(form_id), agent_info, form.language)
             
-            if pdf_filename:
-                # Update form with PDF info
-                self.forms.update_one(
-                    {'_id': ObjectId(form_id)},
-                    {
-                        '$set': {
-                            'pdf_generated': True,
-                            'pdf_generated_at': datetime.utcnow(),
-                            'pdf_filename': pdf_filename,
-                            'updated_at': datetime.utcnow()
-                        }
-                    }
-                )
-                
+            if pdf_stream:
                 # Increment agent's PDF count
                 self.users.update_one(
                     {'_id': ObjectId(agent_id)},
@@ -235,15 +218,18 @@ class HealthInsuranceFormService:
                     agent_id,
                     'PDF_GENERATED',
                     f"Generated health insurance PDF for {form.name} in {form.language}",
-                    {'form_id': form_id, 'pdf_filename': pdf_filename, 'language': form.language}
+                    {'form_id': form_id, 'language': form.language}
                 )
                 
-                return pdf_filename, None
+                # Generate filename for download
+                filename = f"{form.name.replace(' ', '_')}_Health_Insurance_Analysis_{form.language}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+                
+                return pdf_stream, None, filename
             else:
-                return None, "PDF generation failed"
+                return None, "PDF generation failed", None
                 
         except Exception as e:
-            return None, f"PDF generation error: {str(e)}"
+            return None, f"PDF generation error: {str(e)}", None
     
     def get_form_links(self, agent_id, page=1, per_page=10):
         """Get all form links created by agent"""

@@ -327,54 +327,78 @@ def view_form(form_id):
     
     return render_template('forms/health_insurance/view.html', form=form)
 
-@health_insurance_bp.route('/<form_id>/generate-pdf', methods=['POST'])
-@login_required
-def generate_pdf(form_id):
-    """Generate PDF for form"""
-    if not current_user.is_agent():
-        return jsonify({'error': 'Only agents can generate PDFs'}), 403
+# @health_insurance_bp.route('/<form_id>/generate-pdf', methods=['POST'])
+# @login_required
+# def generate_pdf(form_id):
+#     """Generate PDF for form"""
+#     if not current_user.is_agent():
+#         return jsonify({'error': 'Only agents can generate PDFs'}), 403
     
-    service = HealthInsuranceFormService()
-    pdf_filename, error = service.generate_pdf(form_id, current_user.id)
+#     service = HealthInsuranceFormService()
+#     pdf_filename, error = service.generate_pdf(form_id, current_user.id)
     
-    if pdf_filename:
-        return jsonify({
-            'success': True,
-            'pdf_filename': pdf_filename,
-            'download_url': url_for('health_insurance.download_pdf', 
-                                  form_id=form_id, 
-                                  filename=pdf_filename)
-        })
-    else:
-        return jsonify({'success': False, 'error': error}), 400
+#     if pdf_filename:
+#         return jsonify({
+#             'success': True,
+#             'pdf_filename': pdf_filename,
+#             'download_url': url_for('health_insurance.download_pdf', 
+#                                   form_id=form_id, 
+#                                   filename=pdf_filename)
+#         })
+#     else:
+#         return jsonify({'success': False, 'error': error}), 400
 
-@health_insurance_bp.route('/<form_id>/download/<filename>')
+# @health_insurance_bp.route('/<form_id>/download/<filename>')
+# @login_required
+# def download_pdf(form_id, filename):
+#     """Download generated PDF"""
+#     if not current_user.is_agent():
+#         flash('Only agents can download PDFs.', 'danger')
+#         return redirect(url_for('dashboard.index'))
+    
+#     service = HealthInsuranceFormService()
+#     form = service.get_form_by_id(form_id)
+    
+#     if not form or str(form.agent_id) != current_user.id:
+#         flash('Unauthorized access.', 'danger')
+#         return redirect(url_for('health_insurance.index'))
+    
+#     if form.pdf_filename != filename:
+#         flash('Invalid file.', 'danger')
+#         return redirect(url_for('health_insurance.index'))
+    
+#     pdf_path = os.path.join(os.getcwd(), 'static', 'generated_pdfs', filename)
+    
+#     if not os.path.exists(pdf_path):
+#         flash('PDF file not found.', 'danger')
+#         return redirect(url_for('health_insurance.view_form', form_id=form_id))
+    
+#     return send_file(pdf_path, as_attachment=True, download_name=filename)
+# Add this modified generate_pdf route
+
+@health_insurance_bp.route('/<form_id>/generate-pdf')
 @login_required
-def download_pdf(form_id, filename):
-    """Download generated PDF"""
+def generate_pdf_direct(form_id):
+    """Generate and download PDF directly (no server storage)"""
     if not current_user.is_agent():
-        flash('Only agents can download PDFs.', 'danger')
+        flash('Only agents can generate PDFs.', 'danger')
         return redirect(url_for('dashboard.index'))
     
     service = HealthInsuranceFormService()
-    form = service.get_form_by_id(form_id)
+    pdf_stream, error, filename = service.generate_pdf_stream(form_id, current_user.id)
     
-    if not form or str(form.agent_id) != current_user.id:
-        flash('Unauthorized access.', 'danger')
-        return redirect(url_for('health_insurance.index'))
-    
-    if form.pdf_filename != filename:
-        flash('Invalid file.', 'danger')
-        return redirect(url_for('health_insurance.index'))
-    
-    pdf_path = os.path.join(os.getcwd(), 'static', 'generated_pdfs', filename)
-    
-    if not os.path.exists(pdf_path):
-        flash('PDF file not found.', 'danger')
+    if pdf_stream:
+        # Send the PDF directly to browser for download
+        from flask import send_file
+        return send_file(
+            pdf_stream,
+            as_attachment=True,
+            download_name=filename,
+            mimetype='application/pdf'
+        )
+    else:
+        flash(error, 'danger')
         return redirect(url_for('health_insurance.view_form', form_id=form_id))
-    
-    return send_file(pdf_path, as_attachment=True, download_name=filename)
-
 # API endpoints for AJAX operations
 @health_insurance_bp.route('/api/link/<link_id>/toggle-status', methods=['POST'])
 @login_required

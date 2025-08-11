@@ -1,5 +1,8 @@
 # services/forms/pdf_generators/health_insurance_pdf_generator.py
+# MODIFIED - Generate PDF to memory stream instead of file
+
 import os
+import io
 from datetime import datetime
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
@@ -60,8 +63,6 @@ class NumberedCanvas(canvas.Canvas):
 
 class HealthInsurancePDFGenerator:
     def __init__(self):
-        self.output_folder = os.path.join(os.getcwd(), 'static', 'generated_pdfs')
-        self._ensure_output_folder()
         self.translation_service = TranslationService()
         
         # Professional color scheme
@@ -79,10 +80,6 @@ class HealthInsurancePDFGenerator:
             'bg_light': colors.HexColor('#FAFAFA'),     # Very Light Gray
             'white': colors.white
         }
-    
-    def _ensure_output_folder(self):
-        """Ensure output folder exists"""
-        os.makedirs(self.output_folder, exist_ok=True)
     
     def _get_mongodb_connection(self):
         """Get MongoDB connection"""
@@ -497,8 +494,8 @@ class HealthInsurancePDFGenerator:
         
         return footer_table
 
-    def generate_pdf(self, form_id, agent_info, language='en'):
-        """Generate PDF with multi-language support"""
+    def generate_pdf_stream(self, form_id, agent_info, language='en'):
+        """Generate PDF to memory stream (no file system storage)"""
         try:
             # Fetch data
             user_data = self._fetch_form_data(form_id)
@@ -510,13 +507,12 @@ class HealthInsurancePDFGenerator:
             
             recommended_coverage = self._get_recommended_coverage(user_data)
             
-            # Generate filename
-            pdf_filename = f"{user_data['name'].replace(' ', '_')}_Health_Insurance_Analysis_{pdf_language}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
-            pdf_path = os.path.join(self.output_folder, pdf_filename)
+            # Create PDF in memory
+            pdf_buffer = io.BytesIO()
             
             # Create PDF document
             doc = SimpleDocTemplate(
-                pdf_path,
+                pdf_buffer,
                 pagesize=A4,
                 rightMargin=25*mm,
                 leftMargin=25*mm,
@@ -548,7 +544,10 @@ class HealthInsurancePDFGenerator:
             # Build PDF
             doc.build(elements)
             
-            return pdf_filename
+            # Get the value of the BytesIO buffer
+            pdf_buffer.seek(0)
+            
+            return pdf_buffer
             
         except Exception as e:
             print(f"Error generating PDF: {e}")

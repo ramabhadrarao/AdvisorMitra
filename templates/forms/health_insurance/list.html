@@ -41,7 +41,7 @@
                             <th>City</th>
                             <th>Members</th>
                             <th>Submitted</th>
-                            <th>PDF</th>
+                            <th>Language</th>
                             <th class="w-1"></th>
                         </tr>
                     </thead>
@@ -55,24 +55,21 @@
                             <td>{{ form.number_of_members }}</td>
                             <td>{{ form.created_at.strftime('%Y-%m-%d %H:%M') if form.created_at else '-' }}</td>
                             <td>
-                                {% if form.pdf_generated %}
-                                    <span class="badge bg-success">Generated</span>
-                                {% else %}
-                                    <span class="badge bg-warning">Pending</span>
-                                {% endif %}
+                                <span class="badge bg-info">{{ form.language.upper() }}</span>
                             </td>
                             <td>
                                 <div class="btn-list flex-nowrap">
                                     <a href="{{ url_for('health_insurance.view_form', form_id=form.id) }}" class="btn btn-sm">
                                         View
                                     </a>
-                                    {% if form.pdf_generated %}
-                                        <a href="{{ url_for('health_insurance.download_pdf', form_id=form.id, filename=form.pdf_filename) }}" 
-                                           class="btn btn-sm btn-primary">
-                                            Download PDF
+                                    {% if current_user.agent_pdf_generated < current_user.agent_pdf_limit %}
+                                        <a href="{{ url_for('health_insurance.generate_pdf_direct', form_id=form.id) }}" 
+                                           class="btn btn-sm btn-success"
+                                           onclick="return confirmPDFGeneration(event)">
+                                            Generate PDF
                                         </a>
                                     {% else %}
-                                        <button class="btn btn-sm btn-success" onclick="generatePDF('{{ form.id }}')">
+                                        <button class="btn btn-sm btn-secondary" disabled title="PDF limit reached">
                                             Generate PDF
                                         </button>
                                     {% endif %}
@@ -140,31 +137,35 @@
 
 {% block extra_js %}
 <script>
-async function generatePDF(formId) {
-    if (!confirm('Are you sure you want to generate PDF for this form?')) {
-        return;
+function confirmPDFGeneration(event) {
+    const remaining = {{ current_user.agent_pdf_limit - current_user.agent_pdf_generated }};
+    const message = `Are you sure you want to generate this PDF?\n\nThis will use 1 PDF credit.\nYou have ${remaining} PDF credits remaining.`;
+    
+    if (!confirm(message)) {
+        event.preventDefault();
+        return false;
     }
     
-    try {
-        const response = await fetch(`/forms/health-insurance/${formId}/generate-pdf`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            }
-        });
+    // Show loading state
+    const link = event.target;
+    const originalText = link.innerHTML;
+    link.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Generating...';
+    link.classList.add('disabled');
+    link.style.pointerEvents = 'none';
+    
+    // Reset button after 3 seconds (download should start by then)
+    setTimeout(() => {
+        link.innerHTML = originalText;
+        link.classList.remove('disabled');
+        link.style.pointerEvents = 'auto';
         
-        const data = await response.json();
-        
-        if (data.success) {
-            alert('PDF generated successfully!');
+        // Optionally reload page to update PDF count
+        setTimeout(() => {
             window.location.reload();
-        } else {
-            alert('Error generating PDF: ' + data.error);
-        }
-    } catch (error) {
-        console.error('Error:', error);
-        alert('Error generating PDF');
-    }
+        }, 1000);
+    }, 3000);
+    
+    return true;
 }
 </script>
 {% endblock %}

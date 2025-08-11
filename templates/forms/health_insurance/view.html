@@ -15,16 +15,17 @@
                         <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M9 11l-4 4l4 4m-4 -4h11a4 4 0 0 0 0 -8h-1" /></svg>
                         Back to List
                     </a>
-                    {% if form.pdf_generated %}
-                    <a href="{{ url_for('health_insurance.download_pdf', form_id=form.id, filename=form.pdf_filename) }}" 
-                       class="btn btn-primary">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M14 3v4a1 1 0 0 0 1 1h4" /><path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" /><path d="M9 15l2 2l4 -4" /></svg>
-                        Download PDF
+                    {% if current_user.agent_pdf_generated < current_user.agent_pdf_limit %}
+                    <a href="{{ url_for('health_insurance.generate_pdf_direct', form_id=form.id) }}" 
+                       class="btn btn-success"
+                       onclick="return confirmPDFGeneration(event)">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M14 3v4a1 1 0 0 0 1 1h4" /><path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" /><path d="M12 11v6" /><path d="M9 14l3 3l3 -3" /></svg>
+                        Generate & Download PDF
                     </a>
                     {% else %}
-                    <button class="btn btn-success" onclick="generatePDF('{{ form.id }}')">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M14 3v4a1 1 0 0 0 1 1h4" /><path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" /><path d="M12 14m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" /><path d="M14 14l1.5 1.5" /></svg>
-                        Generate PDF
+                    <button class="btn btn-secondary" disabled title="PDF limit reached">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><path d="M14 3v4a1 1 0 0 0 1 1h4" /><path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z" /><path d="M12 11v6" /><path d="M9 14l3 3l3 -3" /></svg>
+                        PDF Limit Reached
                     </button>
                     {% endif %}
                 </div>
@@ -37,6 +38,22 @@
     <div class="container-xl">
         <div class="row">
             <div class="col-12">
+                <!-- PDF Usage Alert -->
+                <div class="alert alert-info mb-3">
+                    <div class="d-flex">
+                        <div>
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon alert-icon" width="24" height="24" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" fill="none"><path stroke="none" d="M0 0h24v24H0z" fill="none"/><circle cx="12" cy="12" r="9" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+                        </div>
+                        <div class="ms-2">
+                            <h4 class="alert-title">PDF Generation Info</h4>
+                            <div class="text-muted">
+                                <strong>PDF Credits:</strong> {{ current_user.agent_pdf_generated }} / {{ current_user.agent_pdf_limit }} used<br>
+                                <strong>Note:</strong> Each PDF generation uses 1 credit. PDFs are generated fresh each time and downloaded directly.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="card">
                     <div class="card-header">
                         <h3 class="card-title">Customer Information</h3>
@@ -133,21 +150,12 @@
                                 <div class="datagrid-content">{{ form.created_at.strftime('%Y-%m-%d %H:%M:%S') if form.created_at else '-' }}</div>
                             </div>
                             <div class="datagrid-item">
-                                <div class="datagrid-title">PDF Status</div>
+                                <div class="datagrid-title">Form Language</div>
                                 <div class="datagrid-content">
-                                    {% if form.pdf_generated %}
-                                        <span class="badge bg-success">Generated</span>
-                                    {% else %}
-                                        <span class="badge bg-warning">Not Generated</span>
-                                    {% endif %}
+                                    {% set lang_map = {'en': 'English', 'hi': 'हिंदी', 'mr': 'मराठी', 'gu': 'ગુજરાતી', 'te': 'తెలుగు', 'bn': 'বাংলা', 'kn': 'ಕನ್ನಡ', 'ta': 'தமிழ்', 'ml': 'മലയാളം'} %}
+                                    {{ lang_map.get(form.language, form.language) }}
                                 </div>
                             </div>
-                            {% if form.pdf_generated %}
-                            <div class="datagrid-item">
-                                <div class="datagrid-title">PDF Generated On</div>
-                                <div class="datagrid-content">{{ form.pdf_generated_at.strftime('%Y-%m-%d %H:%M:%S') if form.pdf_generated_at else '-' }}</div>
-                            </div>
-                            {% endif %}
                         </div>
                     </div>
                 </div>
@@ -159,40 +167,28 @@
 
 {% block extra_js %}
 <script>
-async function generatePDF(formId) {
-    if (!confirm('Are you sure you want to generate PDF for this form?')) {
-        return;
+function confirmPDFGeneration(event) {
+    const remaining = {{ current_user.agent_pdf_limit - current_user.agent_pdf_generated }};
+    const message = `Are you sure you want to generate this PDF?\n\nThis will use 1 PDF credit.\nYou have ${remaining} PDF credits remaining.\n\nThe PDF will be generated and downloaded immediately.`;
+    
+    if (!confirm(message)) {
+        event.preventDefault();
+        return false;
     }
     
-    const btn = event.target;
-    const originalText = btn.innerHTML;
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Generating...';
+    // Show loading state
+    const btn = event.target.closest('a');
+    const originalContent = btn.innerHTML;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Generating PDF...';
+    btn.classList.add('disabled');
     
-    try {
-        const response = await fetch(`/forms/health-insurance/${formId}/generate-pdf`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            }
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-            alert('PDF generated successfully!');
-            window.location.reload();
-        } else {
-            alert('Error generating PDF: ' + data.error);
-            btn.disabled = false;
-            btn.innerHTML = originalText;
-        }
-    } catch (error) {
-        console.error('Error:', error);
-        alert('Error generating PDF');
-        btn.disabled = false;
-        btn.innerHTML = originalText;
-    }
+    // Reset after a timeout in case something goes wrong
+    setTimeout(() => {
+        btn.innerHTML = originalContent;
+        btn.classList.remove('disabled');
+    }, 30000); // 30 seconds timeout
+    
+    return true;
 }
 </script>
 {% endblock %}
