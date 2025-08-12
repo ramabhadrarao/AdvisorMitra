@@ -1,19 +1,21 @@
 # services/translation_service.py
-# UPDATED - Added form field translations for report language
+# ENHANCED - Offline translation with Argos Translate
 
-from googletrans import Translator
+import argostranslate.package
+import argostranslate.translate
 import redis
 import json
 import logging
 from flask import current_app
 import time
+import os
 
 class TranslationService:
     def __init__(self):
-        self.translator = None  # Initialize lazily
         self.redis_client = None
         self.logger = logging.getLogger(__name__)
         self._initialized = False
+        self._argos_initialized = False
         
         # Language mapping
         self.supported_languages = {
@@ -28,167 +30,115 @@ class TranslationService:
             'ml': 'Malayalam'
         }
         
-        # OPTIMIZATION 1: Pre-translated common phrases cache
+        # Argos language codes mapping
+        self.argos_language_map = {
+            'en': 'en',
+            'hi': 'hi',
+            'mr': 'mr',  # Marathi might not be available
+            'gu': 'gu',  # Gujarati might not be available
+            'te': 'te',  # Telugu might not be available
+            'bn': 'bn',
+            'kn': 'kn',  # Kannada might not be available
+            'ta': 'ta',
+            'ml': 'ml'   # Malayalam might not be available
+        }
+        
+        # Initialize with your existing pre-translations
         self._static_translations = {
-            'hi': {
-                'title': 'स्वास्थ्य बीमा आवश्यकता विश्लेषण',
-                'subtitle': 'कृपया अपना विवरण भरें',
-                'mandatory_note': '* चिह्नित सभी फ़ील्ड अनिवार्य हैं',
-                'fields': {
-                    'name': 'पूरा नाम',
-                    'email': 'ईमेल पता',
-                    'mobile': 'मोबाइल नंबर',
-                    'mobile_hint': '10 अंकों का मोबाइल नंबर',
-                    'city_of_residence': 'निवास शहर',
-                    'age': 'आपकी आयु',
-                    'number_of_members': 'परिवार के सदस्यों की संख्या',
-                    'number_of_members_hint': 'आप सहित',
-                    'eldest_member_age': 'सबसे बड़े परिवार के सदस्य की आयु',
-                    'pre_existing_diseases': 'पहले से मौजूद बीमारियाँ?',
-                    'major_surgery': 'बड़ी सर्जरी का इतिहास?',
-                    'existing_insurance': 'क्या आपके पास मौजूदा स्वास्थ्य बीमा है?',
-                    'current_coverage': 'वर्तमान कवरेज राशि (₹)',
-                    'port_policy': 'मौजूदा पॉलिसी पोर्ट करना चाहते हैं?',
-                    'submit_button': 'फॉर्म जमा करें',
-                    'report_language': 'पसंदीदा रिपोर्ट भाषा',
-                    'report_language_hint': 'आपकी स्वास्थ्य बीमा रिपोर्ट इस भाषा में तैयार की जाएगी'
-                },
-                'options': {
-                    'select': 'चुनें',
-                    'select_city': 'शहर चुनें',
-                    'yes': 'हाँ',
-                    'no': 'नहीं'
-                },
-                'privacy_title': 'गोपनीयता सूचना',
-                'privacy_text': 'आपकी जानकारी का उपयोग केवल आपकी स्वास्थ्य बीमा आवश्यकता विश्लेषण तैयार करने के लिए किया जाएगा।'
-            },
-            'mr': {
-                'title': 'आरोग्य विमा गरज विश्लेषण',
-                'subtitle': 'कृपया आपले तपशील भरा',
-                'mandatory_note': '* चिन्हांकित सर्व फील्ड अनिवार्य आहेत',
-                'fields': {
-                    'name': 'पूर्ण नाव',
-                    'email': 'ईमेल पत्ता',
-                    'mobile': 'मोबाइल नंबर',
-                    'submit_button': 'फॉर्म सबमिट करा',
-                    'report_language': 'पसंतीची अहवाल भाषा',
-                    'report_language_hint': 'तुमचा आरोग्य विमा अहवाल या भाषेत तयार केला जाईल'
-                }
-            },
-            'gu': {
-                'title': 'આરોગ્ય વીમા જરૂરિયાત વિશ્લેષણ',
-                'subtitle': 'કૃપા કરીને તમારી વિગતો ભરો',
-                'mandatory_note': '* ચિહ્નિત બધા ક્ષેત્રો ફરજિયાત છે',
-                'fields': {
-                    'name': 'પૂર્ણ નામ',
-                    'email': 'ઇમેઇલ સરનામું',
-                    'mobile': 'મોબાઇલ નંબર',
-                    'submit_button': 'ફોર્મ સબમિટ કરો',
-                    'report_language': 'પસંદગીની રિપોર્ટ ભાષા',
-                    'report_language_hint': 'તમારો આરોગ્ય વીમા રિપોર્ટ આ ભાષામાં તૈયાર કરવામાં આવશે'
-                }
-            },
-            'te': {
-                'fields': {
-                    'report_language': 'ఇష్టపడే నివేదిక భాష',
-                    'report_language_hint': 'మీ ఆరోగ్య బీమా నివేదిక ఈ భాషలో తయారు చేయబడుతుంది'
-                }
-            },
-            'bn': {
-                'fields': {
-                    'report_language': 'পছন্দের রিপোর্ট ভাষা',
-                    'report_language_hint': 'আপনার স্বাস্থ্য বীমা রিপোর্ট এই ভাষায় তৈরি করা হবে'
-                }
-            },
-            'kn': {
-                'fields': {
-                    'report_language': 'ಆದ್ಯತೆಯ ವರದಿ ಭಾಷೆ',
-                    'report_language_hint': 'ನಿಮ್ಮ ಆರೋಗ್ಯ ವಿಮೆ ವರದಿಯನ್ನು ಈ ಭಾಷೆಯಲ್ಲಿ ತಯಾರಿಸಲಾಗುತ್ತದೆ'
-                }
-            },
-            'ta': {
-                'fields': {
-                    'report_language': 'விருப்பமான அறிக்கை மொழி',
-                    'report_language_hint': 'உங்கள் உடல்நலக் காப்பீட்டு அறிக்கை இந்த மொழியில் தயாரிக்கப்படும்'
-                }
-            },
-            'ml': {
-                'fields': {
-                    'report_language': 'മുൻഗണനാ റിപ്പോർട്ട് ഭാഷ',
-                    'report_language_hint': 'നിങ്ങളുടെ ആരോഗ്യ ഇൻഷുറൻസ് റിപ്പോർട്ട് ഈ ഭാഷയിൽ തയ്യാറാക്കും'
-                }
-            }
+            # ... (keep all your existing pre-translations)
         }
     
-    def _init_redis(self):
-        """Initialize Redis connection with proper Flask context"""
-        if self._initialized:
+    def _init_argos(self):
+        """Initialize Argos Translate with required language packages"""
+        if self._argos_initialized:
             return
             
         try:
-            # Only initialize if we have an application context
-            if current_app:
-                redis_url = current_app.config.get('REDIS_URL', 'redis://localhost:6379/0')
-                self.redis_client = redis.from_url(redis_url, socket_timeout=2, socket_connect_timeout=2)
-                self.redis_client.ping()
-                self._initialized = True
-                self.logger.info("✅ Redis translation cache connected")
+            self.logger.info("🔄 Initializing Argos Translate...")
+            
+            # Update package index
+            argostranslate.package.update_package_index()
+            
+            # Download and install required language packages
+            available_packages = argostranslate.package.get_available_packages()
+            
+            # Language pairs we need (English to/from each language)
+            required_pairs = [
+                ('en', 'hi'),  # English to Hindi
+                ('hi', 'en'),  # Hindi to English
+                ('en', 'bn'),  # English to Bengali
+                ('bn', 'en'),  # Bengali to English
+                ('en', 'ta'),  # English to Tamil
+                ('ta', 'en'),  # Tamil to English
+                # Add more pairs as they become available
+            ]
+            
+            installed_count = 0
+            for from_code, to_code in required_pairs:
+                # Check if package exists
+                package = next(
+                    (pkg for pkg in available_packages 
+                     if pkg.from_code == from_code and pkg.to_code == to_code),
+                    None
+                )
+                
+                if package and not argostranslate.package.is_installed(package):
+                    self.logger.info(f"📦 Installing {from_code} -> {to_code} translation package...")
+                    argostranslate.package.install_from_path(package.download())
+                    installed_count += 1
+                elif package:
+                    self.logger.info(f"✅ Package {from_code} -> {to_code} already installed")
+                else:
+                    self.logger.warning(f"⚠️ Package {from_code} -> {to_code} not available")
+            
+            self._argos_initialized = True
+            self.logger.info(f"✅ Argos Translate initialized with {installed_count} new packages")
+            
         except Exception as e:
-            self.logger.warning(f"Redis translation cache failed: {e}. Translations will not be cached.")
-            self.redis_client = None
+            self.logger.error(f"❌ Failed to initialize Argos Translate: {e}")
+            self._argos_initialized = False
     
-    def _ensure_redis(self):
-        """Ensure Redis is initialized before use"""
-        if not self._initialized:
-            self._init_redis()
-        return self.redis_client is not None
-    
-    def _init_translator(self):
-        """Initialize Google Translator lazily"""
-        if self.translator is None:
-            try:
-                start_time = time.time()
-                self.translator = Translator()
-                self.logger.info(f"✅ Google Translator initialized in {time.time() - start_time:.3f}s")
-            except Exception as e:
-                self.logger.error(f"❌ Failed to initialize Google Translator: {e}")
-                self.translator = None
-    
-    def get_cache_key(self, text, target_lang):
-        """Generate cache key for translation"""
-        import hashlib
-        text_hash = hashlib.md5(text.encode()).hexdigest()
-        return f"translation:{text_hash}:{target_lang}"
-    
-    def get_cached_translation(self, text, target_lang):
-        """Get translation from cache"""
-        if not self._ensure_redis():
+    def _translate_with_argos(self, text, target_lang='en', source_lang='auto'):
+        """Translate text using Argos Translate (offline)"""
+        try:
+            # Initialize Argos if needed
+            if not self._argos_initialized:
+                self._init_argos()
+            
+            # Detect source language if auto
+            if source_lang == 'auto':
+                source_lang = 'en'  # Default to English
+            
+            # Map to Argos language codes
+            from_code = self.argos_language_map.get(source_lang, 'en')
+            to_code = self.argos_language_map.get(target_lang, 'en')
+            
+            # Get installed languages
+            installed_languages = argostranslate.translate.get_installed_languages()
+            
+            # Find source and target languages
+            from_lang = next((lang for lang in installed_languages if lang.code == from_code), None)
+            to_lang = next((lang for lang in installed_languages if lang.code == to_code), None)
+            
+            if not from_lang or not to_lang:
+                self.logger.warning(f"Language pair {from_code}->{to_code} not available in Argos")
+                return None
+            
+            # Get translation
+            translation = from_lang.get_translation(to_lang)
+            if translation:
+                result = translation.translate(text)
+                self.logger.debug(f"✅ Argos translated: '{text[:50]}...' to '{result[:50]}...'")
+                return result
+            
             return None
-        
-        try:
-            cache_key = self.get_cache_key(text, target_lang)
-            cached = self.redis_client.get(cache_key)
-            if cached:
-                return cached.decode('utf-8')
+            
         except Exception as e:
-            self.logger.error(f"Redis get error: {e}")
-        
-        return None
-    
-    def cache_translation(self, text, target_lang, translation):
-        """Cache translation"""
-        if not self._ensure_redis():
-            return
-        
-        try:
-            cache_key = self.get_cache_key(text, target_lang)
-            # Cache for 24 hours
-            self.redis_client.setex(cache_key, 86400, translation)
-        except Exception as e:
-            self.logger.error(f"Redis set error: {e}")
+            self.logger.error(f"Argos translation error: {e}")
+            return None
     
     def translate_text(self, text, target_lang='en', source_lang='auto'):
-        """OPTIMIZED: Translate text to target language with fast fallback"""
+        """Translate text with fallback strategy: Static -> Cache -> Argos -> Original"""
         # OPTIMIZATION 1: Return immediately for English
         if not text or target_lang == 'en':
             return text
@@ -201,156 +151,64 @@ class TranslationService:
             # Check in fields
             if 'fields' in self._static_translations[target_lang] and text in self._static_translations[target_lang]['fields']:
                 return self._static_translations[target_lang]['fields'][text]
+            # Check in other nested dictionaries
+            for key in ['options', 'values', 'recommendations', 'success']:
+                if key in self._static_translations[target_lang] and text in self._static_translations[target_lang][key]:
+                    return self._static_translations[target_lang][key][text]
         
-        # OPTIMIZATION 3: Check cache first
+        # OPTIMIZATION 3: Check cache
         cached = self.get_cached_translation(text, target_lang)
         if cached:
             return cached
         
-        # OPTIMIZATION 4: Fast timeout for Google Translate
-        try:
-            start_time = time.time()
-            
-            # Initialize translator if needed
-            self._init_translator()
-            if not self.translator:
-                self.logger.warning("Google Translator not available, returning original text")
-                return text
-            
-            # Quick translation with timeout
-            result = self.translator.translate(text, dest=target_lang, src=source_lang)
-            translation = result.text
-            
+        # OPTIMIZATION 4: Try Argos Translate (offline)
+        argos_result = self._translate_with_argos(text, target_lang, source_lang)
+        if argos_result:
             # Cache the translation
-            self.cache_translation(text, target_lang, translation)
-            
-            elapsed = time.time() - start_time
-            self.logger.debug(f"Translation completed in {elapsed:.3f}s: {text[:50]}...")
-            
-            return translation
-            
-        except Exception as e:
-            elapsed = time.time() - start_time if 'start_time' in locals() else 0
-            self.logger.warning(f"Translation failed after {elapsed:.3f}s: {e}")
-            return text  # Return original text if translation fails
-    
-    def translate_form_data(self, form_data, target_lang='en'):
-        """OPTIMIZED: Translate form field labels and options"""
-        if target_lang == 'en':
-            return form_data
+            self.cache_translation(text, target_lang, argos_result)
+            return argos_result
         
-        # OPTIMIZATION 5: Use static translations for known content
-        if target_lang in self._static_translations:
-            static_trans = self._static_translations[target_lang]
-            
-            # Deep merge static translations with form data
-            translated_data = {}
-            for key, value in form_data.items():
-                if key in static_trans:
-                    translated_data[key] = static_trans[key]
-                elif isinstance(value, str):
-                    # Only translate if not in static cache
-                    translated_data[key] = self.translate_text(value, target_lang)
-                elif isinstance(value, list):
-                    translated_data[key] = [self.translate_text(item, target_lang) for item in value]
-                elif isinstance(value, dict):
-                    # Recursively handle nested dictionaries
-                    if key in static_trans and isinstance(static_trans[key], dict):
-                        translated_data[key] = {**static_trans[key]}
-                        # Add any missing keys from original
-                        for sub_key, sub_value in value.items():
-                            if sub_key not in translated_data[key]:
-                                translated_data[key][sub_key] = self.translate_text(sub_value, target_lang) if isinstance(sub_value, str) else sub_value
-                    else:
-                        translated_data[key] = self.translate_form_data(value, target_lang)
-                else:
-                    translated_data[key] = value
-            
-            return translated_data
-        
-        # Fallback to regular translation for unsupported languages
-        translated_data = {}
-        for key, value in form_data.items():
-            if isinstance(value, str):
-                translated_data[key] = self.translate_text(value, target_lang)
-            elif isinstance(value, list):
-                translated_data[key] = [self.translate_text(item, target_lang) for item in value]
-            elif isinstance(value, dict):
-                translated_data[key] = self.translate_form_data(value, target_lang)
-            else:
-                translated_data[key] = value
-        
-        return translated_data
+        # OPTIMIZATION 5: Fallback to original text
+        self.logger.warning(f"No translation available for '{text[:50]}...' in {target_lang}")
+        return text
     
     def get_form_translations(self, target_lang='en'):
-        """OPTIMIZED: Get all form field translations with static cache"""
-        base_form_data = {
-            'title': 'Health Insurance Requirement Analysis',
-            'subtitle': 'Please fill in your details',
-            'mandatory_note': 'All fields marked with * are mandatory',
-            'fields': {
-                'name': 'Full Name',
-                'email': 'Email Address',
-                'mobile': 'Mobile Number',
-                'mobile_hint': '10 digit mobile number',
-                'city_of_residence': 'City of Residence',
-                'age': 'Your Age',
-                'number_of_members': 'Number of Family Members',
-                'number_of_members_hint': 'Including yourself',
-                'eldest_member_age': 'Age of Eldest Family Member',
-                'pre_existing_diseases': 'Pre-existing Diseases?',
-                'major_surgery': 'History of Major Surgery?',
-                'existing_insurance': 'Do you have existing Health Insurance?',
-                'current_coverage': 'Current Coverage Amount (₹)',
-                'port_policy': 'Want to Port Existing Policy?',
-                'submit_button': 'Submit Form',
-                'privacy_title': 'Privacy Notice',
-                'privacy_text': 'Your information will be used solely for generating your health insurance requirement analysis and will be shared only with your financial advisor.',
-                'report_language': 'Preferred Report Language',
-                'report_language_hint': 'Your health insurance report will be generated in this language'
-            },
-            'options': {
-                'select': 'Select',
-                'select_city': 'Select City',
-                'yes': 'Yes',
-                'no': 'No'
-            },
-            'success': {
-                'title': 'Thank You!',
-                'message': 'Your health insurance requirement details have been submitted successfully.',
-                'next_steps_title': 'What happens next?',
-                'next_steps': [
-                    'Your financial advisor will analyze your requirements',
-                    'A personalized health insurance recommendation report will be prepared',
-                    'You will be contacted with the best suitable options'
-                ],
-                'advisor_title': 'Your Financial Advisor'
-            }
-        }
-        
-        # OPTIMIZATION 6: Use static translations when available
+        """Get all form field translations with Argos fallback"""
+        # First try to return pre-translated content
         if target_lang in self._static_translations:
-            static_trans = self._static_translations[target_lang]
-            
-            # Merge static translations with base data
-            result = {}
-            for key, value in base_form_data.items():
-                if key in static_trans:
-                    if isinstance(value, dict) and isinstance(static_trans[key], dict):
-                        result[key] = {**value, **static_trans[key]}
-                    else:
-                        result[key] = static_trans[key]
-                else:
-                    result[key] = self.translate_form_data(value, target_lang) if target_lang != 'en' else value
-            
-            return result
+            return self._static_translations[target_lang]
         
-        # For unsupported languages, use regular translation
-        return self.translate_form_data(base_form_data, target_lang)
+        # If not available, translate dynamically with Argos
+        base_content = self._static_translations['en']
+        
+        # For unsupported languages, try Argos translation
+        if self._argos_initialized or not self._argos_initialized:
+            self._init_argos()
+        
+        # Translate the base content
+        translated_content = self._translate_dict_with_argos(base_content, target_lang)
+        
+        # Cache the full translation for future use
+        self._static_translations[target_lang] = translated_content
+        
+        return translated_content
     
-    def translate_pdf_content(self, content_data, target_lang='en'):
-        """Translate PDF content"""
-        if target_lang == 'en':
-            return content_data
+    def _translate_dict_with_argos(self, content_dict, target_lang):
+        """Recursively translate dictionary content using Argos"""
+        translated = {}
         
-        return self.translate_form_data(content_data, target_lang)
+        for key, value in content_dict.items():
+            if isinstance(value, str):
+                # Translate string
+                translated[key] = self.translate_text(value, target_lang)
+            elif isinstance(value, list):
+                # Translate list items
+                translated[key] = [self.translate_text(item, target_lang) if isinstance(item, str) else item for item in value]
+            elif isinstance(value, dict):
+                # Recursively translate nested dictionary
+                translated[key] = self._translate_dict_with_argos(value, target_lang)
+            else:
+                # Keep non-string values as is
+                translated[key] = value
+        
+        return translated
