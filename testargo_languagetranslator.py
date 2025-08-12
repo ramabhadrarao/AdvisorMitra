@@ -1,72 +1,53 @@
 from argostranslate import package, translate
-from reportlab.lib.pagesizes import A4
-from reportlab.pdfgen import canvas
-import os
 
-# ✅ STEP 1: Install all translation models (only once, from local files)
-model_files = [
-    "en_hi.argosmodel", "en_mr.argosmodel", "en_gu.argosmodel",
-    "en_te.argosmodel", "en_bn.argosmodel", "en_kn.argosmodel",
-    "en_ta.argosmodel", "en_ml.argosmodel"
+# 1. Install language packages (run only once)
+# Example: English to Hindi
+# You can find available packages with package.get_available_packages()
+available_packages = package.get_available_packages()
+installed_languages = translate.get_installed_languages()
+
+# Function to install a translation model if not already installed
+def install_lang_pair(from_code, to_code):
+    for pkg in available_packages:
+        if pkg.from_code == from_code and pkg.to_code == to_code:
+            print(f"Installing {from_code} → {to_code}...")
+            package.install_from_path(pkg.download())
+            break
+
+# List of target languages
+target_langs = [
+    ("hi", "Hindi"),
+    ("mr", "Marathi"),
+    ("gu", "Gujarati"),
+    ("te", "Telugu"),
+    ("bn", "Bengali"),
+    ("kn", "Kannada"),
+    ("ta", "Tamil"),
+    ("ml", "Malayalam"),
 ]
 
-for file in model_files:
-    if os.path.exists(file):
-        package.install_from_path(file)
+# Install missing packages
+for code, _ in target_langs:
+    install_lang_pair("en", code)
 
-# ✅ STEP 2: Load installed languages
-installed_languages = translate.load_installed_languages()
-en = next(lang for lang in installed_languages if lang.code == "en")
+# 2. Translate text
+text = "Hello, how are you? Welcome to India"
 
-# Mapping of language names to ISO codes
-lang_map = {
-    "Hindi": "hi",
-    "Marathi": "mr",
-    "Gujarati": "gu",
-    "Telugu": "te",
-    "Bengali": "bn",
-    "Kannada": "kn",
-    "Tamil": "ta",
-    "Malayalam": "ml"
-}
+installed_languages = translate.get_installed_languages()
+from_lang = None
+for lang in installed_languages:
+    if lang.code == "en":
+        from_lang = lang
+        break
 
-# ✅ STEP 3: Translate text to all target languages
-source_text = "Hello, how are you?"
-translations = []
-
-for lang_name, code in lang_map.items():
-    try:
-        target_lang = next(lang for lang in installed_languages if lang.code == code)
-        translated_text = en.translate(source_text, target_lang)
-        translations.append((lang_name, translated_text))
-    except StopIteration:
-        translations.append((lang_name, "[Model not installed]"))
-
-# ✅ STEP 4: Generate PDF with translations
-pdf_file = "translations.pdf"
-c = canvas.Canvas(pdf_file, pagesize=A4)
-width, height = A4
-
-y = height - 50
-c.setFont("Helvetica-Bold", 14)
-c.drawString(50, y, "English Source Text:")
-y -= 20
-c.setFont("Helvetica", 12)
-c.drawString(50, y, source_text)
-
-y -= 40
-c.setFont("Helvetica-Bold", 14)
-c.drawString(50, y, "Translations:")
-y -= 20
-c.setFont("Helvetica", 12)
-
-for lang, text in translations:
-    if y < 50:  # New page if space runs out
-        c.showPage()
-        y = height - 50
-        c.setFont("Helvetica", 12)
-    c.drawString(50, y, f"{lang}: {text}")
-    y -= 20
-
-c.save()
-print(f"✅ PDF saved as {pdf_file}")
+if from_lang:
+    for code, name in target_langs:
+        to_lang = None
+        for lang in installed_languages:
+            if lang.code == code:
+                to_lang = lang
+                break
+        if to_lang:
+            translation = from_lang.get_translation(to_lang)
+            result = translation.translate(text)
+            print(f"{name} ({code}): {result}")
